@@ -141,42 +141,42 @@ app.post('/api/deploy', async (req, res) => {
 
     console.log(`[Deploy] Starting deploy for session: ${sessionId}`);
 
-    // 1. Validation
+    // 1. Check Token
     if (!process.env.SURGE_TOKEN) {
-        console.error("[Deploy] Error: SURGE_TOKEN is missing in .env file");
+        console.error("[Deploy] Error: SURGE_TOKEN is missing.");
         return res.status(500).json({ error: "Server config error: Missing Deployment Token" });
     }
 
     if (!fs.existsSync(folderPath)) {
-        return res.status(400).json({ error: "Site not found. Please click Generate first." });
+        return res.status(400).json({ error: "Site not found." });
     }
 
-    // 2. Prepare Command
+    // 2. Prepare Domain
     const randomName = 'wflow-' + Math.random().toString(36).substr(2, 6);
     const domain = `${randomName}.surge.sh`;
     
-    // USE NPX: This works on Windows, Mac, and Linux automatically
-    const command = `npx surge --project "${folderPath}" --domain ${domain} --token ${process.env.SURGE_TOKEN}`;
+    // 3. FIND THE LOCAL SURGE BINARY (The Fix)
+    // On Windows, the file is named 'surge.cmd'. On Render (Linux), it's just 'surge'.
+    const isWindows = process.platform === "win32";
+    const surgeExec = isWindows ? 'surge.cmd' : 'surge';
+    
+    // This points to: /server/node_modules/.bin/surge
+    const surgePath = path.join(__dirname, 'node_modules', '.bin', surgeExec);
 
-    console.log(`[Deploy] Executing: npx surge --domain ${domain}...`);
+    console.log(`[Deploy] Using binary at: ${surgePath}`);
 
-    // 3. Execute
+    // 4. Run the command using the direct file path
+    const command = `"${surgePath}" --project "${folderPath}" --domain ${domain} --token ${process.env.SURGE_TOKEN}`;
+
     exec(command, (error, stdout, stderr) => {
         if (error) {
             console.error(`[Deploy] FAILED.`);
-            console.error(`[Deploy] Error Code: ${error.code}`);
-            console.error(`[Deploy] Error Message: ${error.message}`);
-            console.error(`[Deploy] Stderr (Surge Output): ${stderr}`);
-            
-            return res.status(500).json({ 
-                error: "Deployment failed. Check terminal for details.",
-                details: stderr || error.message
-            });
+            console.error(`[Deploy] Message: ${error.message}`);
+            console.error(`[Deploy] Stderr: ${stderr}`);
+            return res.status(500).json({ error: "Deployment failed. Check logs." });
         }
         
-        console.log(`[Deploy] Success!`);
-        console.log(stdout); // Log the success message
-        
+        console.log(`[Deploy] Success! Output: ${stdout}`);
         res.json({ url: `https://${domain}` });
     });
 });
