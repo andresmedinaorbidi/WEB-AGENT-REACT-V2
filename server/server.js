@@ -153,17 +153,15 @@ app.post('/api/deploy', async (req, res) => {
         return res.status(400).json({ error: "Site not found" });
     }
 
-    // 3. Locate Surge Binary Dynamically (No more guessing paths)
-    // We look for the package.json of surge to find its root folder
+    // 3. Locate Surge Binary Dynamically
     let surgeCliPath;
     try {
-        const surgePkg = require.resolve('surge/package.json');
-        const surgeRoot = path.dirname(surgePkg);
-        surgeCliPath = path.join(surgeRoot, 'lib', 'cli.js');
+        // This asks Node: "Where is the file lib/cli.js inside the surge package?"
+        surgeCliPath = require.resolve('surge/lib/cli.js');
         console.log(`[Deploy] Found Surge at: ${surgeCliPath}`);
     } catch (e) {
         console.error("Could not find Surge package:", e);
-        return res.status(500).json({ error: "Surge dependency missing" });
+        return res.status(500).json({ error: "Surge dependency missing. Please run 'npm install surge' locally and push." });
     }
 
     // 4. Prepare Domain
