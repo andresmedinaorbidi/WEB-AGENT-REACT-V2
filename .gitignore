@@ -1,0 +1,35 @@
+# -----------------------------
+# SECURITY (MUST IGNORE)
+# -----------------------------
+.env
+*/.env
+server/.env
+*.pem
+*.key
+
+# -----------------------------
+# JUNK / HEAVY FILES
+# -----------------------------
+node_modules
+*/node_modules
+
+# -----------------------------
+# BUILD ARTIFACTS
+# -----------------------------
+dist
+*/dist
+build
+*/build
+
+# -----------------------------
+# GENERATED CONTENT (Optional)
+# -----------------------------
+# You can ignore these if you don't want generated sites on GitHub
+server/sites
+sites
+
+# -----------------------------
+# OS FILES
+# -----------------------------
+.DS_Store
+Thumbs.db
