@@ -141,39 +141,33 @@ app.post('/api/deploy', async (req, res) => {
 
     console.log(`[Deploy] Starting deploy for session: ${sessionId}`);
 
-    // 1. Check Token
     if (!process.env.SURGE_TOKEN) {
-        console.error("[Deploy] Error: SURGE_TOKEN is missing.");
-        return res.status(500).json({ error: "Server config error: Missing Deployment Token" });
+        return res.status(500).json({ error: "Missing SURGE_TOKEN" });
     }
 
     if (!fs.existsSync(folderPath)) {
         return res.status(400).json({ error: "Site not found." });
     }
 
-    // 2. Prepare Domain
     const randomName = 'wflow-' + Math.random().toString(36).substr(2, 6);
     const domain = `${randomName}.surge.sh`;
     
-    // 3. FIND THE LOCAL SURGE BINARY (The Fix)
-    // On Windows, the file is named 'surge.cmd'. On Render (Linux), it's just 'surge'.
-    const isWindows = process.platform === "win32";
-    const surgeExec = isWindows ? 'surge.cmd' : 'surge';
+    // --- THE FIX ---
+    // Instead of looking for the binary in .bin (which fails on Render),
+    // we find the actual JavaScript file inside the surge package.
+    const surgeScript = path.join(__dirname, 'node_modules', 'surge', 'lib', 'cli.js');
     
-    // This points to: /server/node_modules/.bin/surge
-    const surgePath = path.join(__dirname, 'node_modules', '.bin', surgeExec);
+    // We run it explicitly with "node"
+    const command = `node "${surgeScript}" --project "${folderPath}" --domain ${domain} --token ${process.env.SURGE_TOKEN}`;
 
-    console.log(`[Deploy] Using binary at: ${surgePath}`);
-
-    // 4. Run the command using the direct file path
-    const command = `"${surgePath}" --project "${folderPath}" --domain ${domain} --token ${process.env.SURGE_TOKEN}`;
+    console.log(`[Deploy] Executing: node surge/lib/cli.js...`);
 
     exec(command, (error, stdout, stderr) => {
         if (error) {
             console.error(`[Deploy] FAILED.`);
             console.error(`[Deploy] Message: ${error.message}`);
             console.error(`[Deploy] Stderr: ${stderr}`);
-            return res.status(500).json({ error: "Deployment failed. Check logs." });
+            return res.status(500).json({ error: "Deployment failed.", details: stderr });
         }
         
         console.log(`[Deploy] Success! Output: ${stdout}`);
