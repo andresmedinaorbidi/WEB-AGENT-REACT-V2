@@ -138,82 +138,57 @@ app.post('/api/edit', async (req, res) => {
 
 app.post('/api/deploy', async (req, res) => {
     const { sessionId } = req.body;
-    
     console.log(`[Deploy] Initializing for session: ${sessionId}`);
 
-    // 1. Validate Environment
-    if (!process.env.SURGE_TOKEN) {
-        console.error("Missing SURGE_TOKEN");
-        return res.status(500).json({ error: "Server missing Surge Token" });
-    }
+    if (!process.env.SURGE_TOKEN) return res.status(500).json({ error: "Missing SURGE_TOKEN" });
 
-    // 2. Locate the Site
     const folderPath = path.join(sitesDir, sessionId);
-    if (!fs.existsSync(folderPath)) {
-        return res.status(400).json({ error: "Site not found" });
+    if (!fs.existsSync(folderPath)) return res.status(400).json({ error: "Site not found" });
+
+    // --- BRUTE FORCE PATH CALCULATION ---
+    // We assume standard node_modules structure
+    const surgeCliPath = path.join(__dirname, 'node_modules', 'surge', 'lib', 'cli.js');
+    
+    console.log(`[Deploy] Looking for Surge at: ${surgeCliPath}`);
+
+    // DEBUG: Prove if the file exists
+    if (fs.existsSync(surgeCliPath)) {
+        console.log("✅ Surge file found!");
+    } else {
+        console.error("❌ Surge file NOT found at calculated path.");
+        
+        // DEBUG: List contents of node_modules to see what IS there
+        const modulesDir = path.join(__dirname, 'node_modules');
+        if (fs.existsSync(modulesDir)) {
+            console.log("Contents of node_modules:", fs.readdirSync(modulesDir).slice(0, 10)); // Show first 10
+        } else {
+            console.error("❌ node_modules folder is missing completely!");
+        }
+        return res.status(500).json({ error: "Surge not installed on server." });
     }
 
-    // 3. Locate Surge Binary Dynamically
-    let surgeCliPath;
-    try {
-        // This asks Node: "Where is the file lib/cli.js inside the surge package?"
-        surgeCliPath = require.resolve('surge/lib/cli.js');
-        console.log(`[Deploy] Found Surge at: ${surgeCliPath}`);
-    } catch (e) {
-        console.error("Could not find Surge package:", e);
-        return res.status(500).json({ error: "Surge dependency missing. Please run 'npm install surge' locally and push." });
-    }
-
-    // 4. Prepare Domain
     const randomName = 'wflow-' + Math.random().toString(36).substr(2, 6);
     const domain = `${randomName}.surge.sh`;
 
-    // 5. Run Deployment using SPAWN (Streams data, doesn't crash memory)
     console.log(`[Deploy] Spawning process...`);
     
+    // Use 'node' to run the javascript file directly
     const child = spawn('node', [surgeCliPath, '--project', folderPath, '--domain', domain], {
-        env: { ...process.env, SURGE_TOKEN: process.env.SURGE_TOKEN } // Pass token securely via ENV
+        env: { ...process.env, SURGE_TOKEN: process.env.SURGE_TOKEN }
     });
 
     let outputLog = '';
     let errorLog = '';
 
-    // Listen to logs in real-time
-    child.stdout.on('data', (data) => {
-        const str = data.toString();
-        outputLog += str;
-        console.log(`[Surge]: ${str.trim()}`);
-    });
+    child.stdout.on('data', (d) => { outputLog += d.toString(); console.log(`[Surge]: ${d}`); });
+    child.stderr.on('data', (d) => { errorLog += d.toString(); console.error(`[Surge Err]: ${d}`); });
 
-    child.stderr.on('data', (data) => {
-        const str = data.toString();
-        errorLog += str;
-        console.error(`[Surge Err]: ${str.trim()}`);
-    });
-
-    // Handle process finish
     child.on('close', (code) => {
         if (code === 0) {
-            console.log(`[Deploy] Success! Domain: ${domain}`);
             res.json({ url: `https://${domain}` });
         } else {
-            console.error(`[Deploy] Failed with code ${code}`);
-            // Check for common specific errors in the log
-            let errorMsg = "Deployment failed";
-            if (errorLog.includes("login")) errorMsg = "Surge requires login (Token invalid)";
-            if (errorLog.includes("permissions")) errorMsg = "Domain already taken or permission denied";
-            
-            res.status(500).json({ 
-                error: errorMsg, 
-                details: errorLog || "Process exited with error code " + code 
-            });
+            res.status(500).json({ error: "Deploy failed", details: errorLog });
         }
-    });
-
-    // Handle process crash
-    child.on('error', (err) => {
-        console.error(`[Deploy] Process Crashed:`, err);
-        res.status(500).json({ error: "Deployment process crashed", details: err.message });
     });
 });
 
