@@ -140,48 +140,38 @@ app.post('/api/deploy', async (req, res) => {
     const { sessionId } = req.body;
     console.log(`[Deploy] Initializing for session: ${sessionId}`);
 
-    if (!process.env.SURGE_TOKEN) return res.status(500).json({ error: "Missing SURGE_TOKEN" });
+    if (!process.env.SURGE_TOKEN) {
+        return res.status(500).json({ error: "Missing SURGE_TOKEN" });
+    }
 
     const folderPath = path.join(sitesDir, sessionId);
-    if (!fs.existsSync(folderPath)) return res.status(400).json({ error: "Site not found" });
-
-    // --- BRUTE FORCE PATH CALCULATION ---
-    // We assume standard node_modules structure
-    const surgeCliPath = path.join(__dirname, 'node_modules', 'surge', 'lib', 'cli.js');
-    
-    console.log(`[Deploy] Looking for Surge at: ${surgeCliPath}`);
-
-    // DEBUG: Prove if the file exists
-    if (fs.existsSync(surgeCliPath)) {
-        console.log("✅ Surge file found!");
-    } else {
-        console.error("❌ Surge file NOT found at calculated path.");
-        
-        // DEBUG: List contents of node_modules to see what IS there
-        const modulesDir = path.join(__dirname, 'node_modules');
-        if (fs.existsSync(modulesDir)) {
-            console.log("Contents of node_modules:", fs.readdirSync(modulesDir).slice(0, 10)); // Show first 10
-        } else {
-            console.error("❌ node_modules folder is missing completely!");
-        }
-        return res.status(500).json({ error: "Surge not installed on server." });
+    if (!fs.existsSync(folderPath)) {
+        return res.status(400).json({ error: "Site not found" });
     }
 
     const randomName = 'wflow-' + Math.random().toString(36).substr(2, 6);
     const domain = `${randomName}.surge.sh`;
 
-    console.log(`[Deploy] Spawning process...`);
+    console.log(`[Deploy] Deploying to: ${domain}`);
     
-    // Use 'node' to run the javascript file directly
-    const child = spawn('node', [surgeCliPath, '--project', folderPath, '--domain', domain], {
-        env: { ...process.env, SURGE_TOKEN: process.env.SURGE_TOKEN }
+    // Use npx - much simpler!
+    const child = spawn('npx', ['surge', '--project', folderPath, '--domain', domain], {
+        env: { ...process.env, SURGE_TOKEN: process.env.SURGE_TOKEN },
+        cwd: __dirname
     });
 
     let outputLog = '';
     let errorLog = '';
 
-    child.stdout.on('data', (d) => { outputLog += d.toString(); console.log(`[Surge]: ${d}`); });
-    child.stderr.on('data', (d) => { errorLog += d.toString(); console.error(`[Surge Err]: ${d}`); });
+    child.stdout.on('data', (d) => { 
+        outputLog += d.toString(); 
+        console.log(`[Surge]: ${d}`); 
+    });
+    
+    child.stderr.on('data', (d) => { 
+        errorLog += d.toString(); 
+        console.error(`[Surge Err]: ${d}`); 
+    });
 
     child.on('close', (code) => {
         if (code === 0) {
