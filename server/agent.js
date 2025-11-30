@@ -7,7 +7,14 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-3-pro-preview" });
+
+// --- ARCHITECTURE STRATEGY ---
+// 1. CREATIVE MODEL (The Architect): Uses the most powerful model for initial design.
+const creativeModel = genAI.getGenerativeModel({ model: "gemini-3-pro-preview" }); 
+// Note: "gemini-3-pro-preview" is experimental. If it fails, use "gemini-1.5-pro".
+
+// 2. FAST MODEL (The Intern): Uses the cheapest model for edits/tweaks.
+const fastModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
 
 // --- MOCK DATA FOR TESTING (Type "TEST" in prompt) ---
 const MOCK_SITE = `
@@ -109,7 +116,8 @@ async function generateWebsite(userPrompt) {
     }
 
     try {
-        const chat = model.startChat({
+        // Use creativeModel here
+        const chat = creativeModel.startChat({
             history: [{ role: "user", parts: [{ text: SYSTEM_PROMPT }] }]
         });
         
@@ -137,17 +145,27 @@ async function editWebsite(currentCode, instruction) {
     }
 
     try {
-        const chat = model.startChat({
+        // Use fastModel here
+        // We modify the prompt slightly to emphasize keeping the existing structure
+        const chat = fastModel.startChat({
             history: [
                 { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
                 { role: "model", parts: [{ text: `\`\`\`jsx\n${currentCode}\n\`\`\`` }] }
             ]
         });
         
-        console.log("Agent: Sending edit...");
-        const result = await chat.sendMessage(`Edit this code. Instruction: ${instruction}`);
-        const text = result.response.text();
+        console.log("Agent: Editing with Fast Model (Flash)...");
+        const result = await chat.sendMessage(`
+        You are an intelligent code editor.
+        Refactor the code above based on this instruction: "${instruction}"
         
+        RULES:
+        1. Keep the existing design consistency.
+        2. Only change what is asked.
+        3. Return the FULL updated file.
+        `);
+        
+        const text = result.response.text();
         return cleanAndExtractCode(text);
     } catch (error) {
         console.error("Gemini Edit Error:", error);
