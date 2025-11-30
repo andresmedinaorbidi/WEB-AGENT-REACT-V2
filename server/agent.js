@@ -1,15 +1,15 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 require('dotenv').config();
 
-// Debug: Check if key is loaded
+// Safety check
 if (!process.env.GEMINI_API_KEY) {
     console.error("❌ ERROR: GEMINI_API_KEY is missing from .env file!");
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-3-pro-preview" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
-// A static, instant website for testing purposes
+// --- MOCK DATA FOR TESTING (Type "TEST" in prompt) ---
 const MOCK_SITE = `
 export default function App() {
   const [count, setCount] = React.useState(0);
@@ -24,9 +24,7 @@ export default function App() {
         </h1>
         <p className="text-neutral-400 text-lg">
           This is a static response. No AI credits were used.
-          Use this to test the UI flow, History, and Deployment.
         </p>
-        
         <div className="grid grid-cols-2 gap-4">
           <div className="p-6 rounded-2xl bg-neutral-900 border border-white/10">
             <h3 className="text-xl font-bold mb-2">Interactive Test</h3>
@@ -38,7 +36,7 @@ export default function App() {
             </button>
           </div>
           <div className="p-6 rounded-2xl bg-neutral-900 border border-white/10 flex items-center justify-center">
-             <img src="https://placehold.co/600x400/111/FFF?text=Image+Test" className="rounded-lg opacity-50 hover:opacity-100 transition-opacity" />
+             <div className="text-neutral-500">Image Placeholder</div>
           </div>
         </div>
       </div>
@@ -48,47 +46,64 @@ export default function App() {
 `;
 
 const SYSTEM_PROMPT = `
-You are an expert React Developer.
-Your goal is to generate a SINGLE-FILE React component using Tailwind CSS.
+You are a Senior React Developer & UI/UX Designer.
 
-### TECHNICAL RULES:
-1. Output JSON ONLY. Format: { "code": "..." }
-2. Do NOT write import statements.
-3. Component name must be "App".
-4. **ICONS:** Do NOT use external icon libraries (like Lucide or React-Icons). 
-   - Use standard Emojis (e.g., 🚀, 🍔) for simplicity.
-   - OR use raw <svg> tags with Tailwind classes for professional icons.
-5. NO Markdown blocks. Just raw JSON.
+### DESIGN PERSONALITY:
+- **Aesthetic:** High-End Editorial, "Awwwards" style, Bento Grids.
+- **Visuals:** Visual-heavy. Use large background images and image grids.
+- **Typography:** Bold, clean sans-serif fonts via Tailwind.
+
+### CRITICAL TECHNICAL RULES:
+1. **Images (CRITICAL):** 
+   - Use **Pollinations AI** for real-time generated images.
+   - **URL Format:** \`https://image.pollinations.ai/prompt/{DESCRIPTION}?width={width}&height={height}&nologo=true\`
+   - Always URI-encode the description.
+
+2. **Navigation:** Use React State (\`const [view, setView] = useState('home')\`), NOT <a> tags.
+3. **Styling:** Use **Tailwind CSS** for everything.
+4. **Icons:** Use **Raw SVGs** with Tailwind classes.
+5. **Structure:** Export a single default component named \`App\`.
+
+### OUTPUT FORMAT:
+- Return raw JSX wrapped in a markdown block (\`\`\`jsx ... \`\`\`).
+- Do NOT output JSON.
 `;
 
-// HELPER: Extract JSON from messy AI output
-function parseGeminiOutput(text) {
+// --- HELPER FUNCTION (This was missing!) ---
+function cleanAndExtractCode(text) {
     try {
-        // 1. Try simple parse
-        return JSON.parse(text);
-    } catch (e) {
-        // 2. If that fails, extract everything between the first { and last }
-        const firstOpen = text.indexOf('{');
-        const lastClose = text.lastIndexOf('}');
+        let code = text.trim();
         
-        if (firstOpen !== -1 && lastClose !== -1) {
-            const jsonString = text.substring(firstOpen, lastClose + 1);
-            try {
-                return JSON.parse(jsonString);
-            } catch (innerE) {
-                console.error("JSON Parse Failed on string:", jsonString);
-                throw new Error("AI generated invalid JSON");
-            }
+        // 1. Markdown Strategy
+        const markdownMatch = text.match(/```(?:jsx|javascript|js|tsx)?\s*([\s\S]*?)\s*```/);
+        if (markdownMatch && markdownMatch[1]) {
+            return { code: markdownMatch[1].trim() };
         }
-        throw new Error("No JSON found in AI response");
+        
+        // 2. JSON Strategy (Fallback)
+        if (code.startsWith("{") && code.endsWith("}")) {
+            try {
+                const parsed = JSON.parse(code);
+                if (parsed.code) return { code: parsed.code };
+            } catch (e) {}
+        }
+        
+        // 3. Raw Code Strategy
+        if (text.includes("function App") || text.includes("export default")) {
+            return { code: text.replace(/^json\s*/, "").replace(/^code\s*/, "").trim() };
+        }
+        
+        throw new Error("No code block found");
+    } catch (e) {
+        console.error("Extraction Error:", text.substring(0, 100) + "...");
+        throw new Error("Failed to extract code");
     }
 }
 
 async function generateWebsite(userPrompt) {
-    // ⚡ MOCK TRAP: If prompt is "TEST", return static code instantly
+    // ⚡ MOCK TRAP
     if (userPrompt.trim() === "TEST") {
         console.log("⚡ MOCK MODE: Skipping Gemini API...");
-        // Return a fake delay to simulate loading UI (optional)
         await new Promise(resolve => setTimeout(resolve, 2000)); 
         return { code: MOCK_SITE };
     }
@@ -103,6 +118,7 @@ async function generateWebsite(userPrompt) {
         const text = result.response.text();
         
         console.log("Agent: Parsing response...");
+        // This function exists now!
         return cleanAndExtractCode(text);
     } catch (error) {
         console.error("Gemini API Error:", error);
@@ -115,12 +131,8 @@ async function editWebsite(currentCode, instruction) {
     if (instruction.trim() === "TEST") {
         console.log("⚡ MOCK EDIT: Skipping Gemini API...");
         await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // VISUALLY CHANGE THE MOCK SITE TO PROVE IT UPDATED
-        // We change "MOCK MODE" to "EDITED MODE" and change colors to Purple
         let edited = MOCK_SITE.replace('MOCK MODE', 'EDITED MODE');
-        edited = edited.replace(/#beff50/g, '#a855f7'); // Change Green to Purple
-        
+        edited = edited.replace(/#beff50/g, '#a855f7');
         return { code: edited };
     }
 
