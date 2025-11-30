@@ -1,4 +1,3 @@
-const { spawn } = require('child_process'); // Change 'exec' to 'spawn'
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -15,7 +14,6 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // 1. DETERMINE BASE URL
-// If on Render, use relative path. If Local, use localhost:3000
 const IS_PRODUCTION = process.env.RENDER || false; 
 const BASE_URL = IS_PRODUCTION ? '' : 'http://localhost:3000';
 
@@ -29,6 +27,8 @@ if (!fs.existsSync(sitesDir)) {
 app.use('/sites', express.static(sitesDir));
 
 // --- HELPER FUNCTIONS ---
+
+// Robustly clean code and ensure 'App' exists
 function cleanReactCode(code) {
     let clean = code;
     clean = clean.replace(/```jsx/g, '').replace(/```/g, '');
@@ -108,84 +108,93 @@ function saveSite(sessionId, rawCode) {
 app.post('/api/create', async (req, res) => {
     try {
         const { prompt, sessionId } = req.body;
-        console.log("Generating...");
+        console.log("Gemini generating...");
         const result = await generateWebsite(prompt);
         saveSite(sessionId, result.code);
-        // FIX: Use BASE_URL to handle localhost vs production
-        res.json({ url: `${BASE_URL}/sites/${sessionId}/index.html` });
+        res.json({ 
+            url: `${BASE_URL}/sites/${sessionId}/index.html?t=${Date.now()}`,
+            code: result.code 
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Generation failed" });
     }
 });
 
+// FIX: This route was missing the file reading part in your previous error
 app.post('/api/edit', async (req, res) => {
     try {
         const { instruction, sessionId } = req.body;
         const dir = path.join(sitesDir, sessionId);
-        if (!fs.existsSync(path.join(dir, 'app.jsx'))) return res.status(404).json({ error: "Session not found" });
+        
+        // 1. Check if file exists
+        if (!fs.existsSync(path.join(dir, 'app.jsx'))) {
+            return res.status(404).json({ error: "Session not found" });
+        }
+
+        // 2. READ THE FILE (This was missing!)
         const currentCode = fs.readFileSync(path.join(dir, 'app.jsx'), 'utf-8');
-        console.log("Editing...");
+        
+        console.log("Gemini editing...");
         const result = await editWebsite(currentCode, instruction);
         saveSite(sessionId, result.code);
-        // FIX: Use BASE_URL here too
-        res.json({ url: `${BASE_URL}/sites/${sessionId}/index.html?t=${Date.now()}` });
+        
+        res.json({ 
+            url: `${BASE_URL}/sites/${sessionId}/index.html?t=${Date.now()}`,
+            code: result.code 
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Edit failed" });
     }
 });
 
+app.post('/api/restore', async (req, res) => {
+    try {
+        const { sessionId, code } = req.body;
+        saveSite(sessionId, code);
+        res.json({ 
+            url: `${BASE_URL}/sites/${sessionId}/index.html?t=${Date.now()}`,
+            code: code 
+        });
+    } catch (error) {
+        res.status(500).json({ error: "Restore failed" });
+    }
+});
+
 app.post('/api/deploy', async (req, res) => {
     const { sessionId } = req.body;
-    console.log(`[Deploy] Initializing for session: ${sessionId}`);
-
-    if (!process.env.SURGE_TOKEN) {
-        return res.status(500).json({ error: "Missing SURGE_TOKEN" });
-    }
-
     const folderPath = path.join(sitesDir, sessionId);
-    if (!fs.existsSync(folderPath)) {
-        return res.status(400).json({ error: "Site not found" });
-    }
+    if (!fs.existsSync(folderPath)) return res.status(400).json({ error: "Site not found" });
 
+    // SURGE DEPLOYMENT (Cross-Platform)
     const randomName = 'wflow-' + Math.random().toString(36).substr(2, 6);
     const domain = `${randomName}.surge.sh`;
-
-    console.log(`[Deploy] Deploying to: ${domain}`);
     
-    // Use npx - much simpler!
-    const child = spawn('npx', ['surge', '--project', folderPath, '--domain', domain], {
-        env: { ...process.env, SURGE_TOKEN: process.env.SURGE_TOKEN },
-        cwd: __dirname
-    });
+    // Check if token exists
+    if (!process.env.SURGE_TOKEN) {
+        return res.status(500).json({ error: "Missing SURGE_TOKEN in server env" });
+    }
 
-    let outputLog = '';
-    let errorLog = '';
+    // Use local binary
+    const isWindows = process.platform === "win32";
+    const surgeExec = isWindows ? 'surge.cmd' : 'surge';
+    const surgePath = path.join(__dirname, 'node_modules', '.bin', surgeExec);
 
-    child.stdout.on('data', (d) => { 
-        outputLog += d.toString(); 
-        console.log(`[Surge]: ${d}`); 
-    });
+    const command = `"${surgePath}" --project "${folderPath}" --domain ${domain} --token ${process.env.SURGE_TOKEN}`;
     
-    child.stderr.on('data', (d) => { 
-        errorLog += d.toString(); 
-        console.error(`[Surge Err]: ${d}`); 
-    });
-
-    child.on('close', (code) => {
-        if (code === 0) {
-            res.json({ url: `https://${domain}` });
-        } else {
-            res.status(500).json({ error: "Deploy failed", details: errorLog });
+    exec(command, (error, stdout, stderr) => {
+        if (error) {
+            console.error("Surge Error:", stderr);
+            return res.status(500).json({ error: "Deploy failed" });
         }
+        res.json({ url: `https://${domain}` });
     });
 });
 
 // --- SERVE FRONTEND (Production Only) ---
 app.use(express.static(path.join(__dirname, '../client/dist')));
 
-// FIX: Catch-All Route with 404 Protection
 app.get(/.*/, (req, res) => {
     if (req.path.startsWith('/sites/') || req.path.startsWith('/api/')) {
         return res.status(404).send('404 Not Found');
