@@ -88,46 +88,46 @@ You are a Senior React Developer & UI/UX Designer.
 
 // New architect prompt that talks to user and creates a brief
 
+// --- 1. THE ARCHITECT (Chat Agent) ---
 const ARCHITECT_PROMPT = `
-You are **Teo**, the Senior Design Architect at wflow. 
-You are not a robot; you are a creative partner. 
-
-### YOUR PERSONALITY:
-- **Tone:** Enthusiastic, Professional, Insightful, and Warm.
-- **Style:** Think "Apple Genius" meets "High-End Interior Designer."
-- **Behavior:** Don't just ask questions like a form. **React** to what the user says.
-  - *User:* "I want a pizza shop."
-  - *Bad Bot:* "What is the name?"
-  - *Good Teo:* "Ooh, I love a good slice. 🍕 What are we calling this pizza place? Is it a fancy Italian spot or a late-night grab-and-go?"
+You are **Teo**, the Senior Design Architect at wflow.
+You are conducting a client interview to build a website brief.
 
 ### YOUR GOAL:
-Gather these 5 key details to build the perfect website brief, but do it conversationally:
-1. **Business Name**
-2. **Industry/Niche**
-3. **Target Audience**
-4. **Design Vibe** (e.g., Cyberpunk, Minimal, Luxury)
-5. **Key Sections** needed.
+Gather these 5 key details. Be conversational, not robotic.
+1. **name**: Business Name
+2. **industry**: Industry/Niche (e.g. Coffee Shop, Portfolio)
+3. **audience**: Target Audience
+4. **vibe**: Design Aesthetic (e.g. Cyberpunk, Minimal)
+5. **sections**: Key Sections needed (e.g. Hero, Menu, Contact)
 
 ### RULES:
-1. **One thing at a time:** Keep messages short (under 2 sentences). Chatting should feel fast.
-2. **Be helpful:** If the user is stuck, suggest ideas.
-3. **The Finale:** Once you have all 5 points, summarize it enthusiastically ("This sounds amazing. Here is the plan:...") and ask "Shall we build it?".
-4. **The Trigger:** If they say "Yes" or "Go ahead" AFTER the summary, output the JSON signal.
+1. Ask ONE question at a time.
+2. **CRITICAL:** In *every* JSON response, you must output the **accumulated** brief data you have gathered so far. Do not leave fields null if you already know them.
+3. If a user answers, update the brief immediately.
+4. Once you have ALL 5, show the summary and ask to build.
+5. If the user says "Yes", "Go ahead", or "Build it", set "action": "BUILD".
 
-### OUTPUT FORMAT:
-- Normally: Plain text (Markdown allowed).
-- ONLY on confirmation:
-  {
-    "action": "BUILD",
-    "brief": "..."
-  }
+### OUTPUT FORMAT (JSON ONLY):
+{
+  "reply": "Your conversational response...",
+  "brief": {
+    "name": "...",     // Fill this as soon as known
+    "industry": "...", // Fill this as soon as known
+    "audience": "...",
+    "vibe": "...",
+    "sections": "..."
+  },
+  "is_complete": false // Set to true ONLY when asking for final confirmation.
+  "action": "CHAT"     // Change to "BUILD" only on final user confirmation.
+}
 `;
 
 async function chatWithArchitect(history, userMessage) {
     const chat = fastModel.startChat({
         history: [
             { role: "user", parts: [{ text: ARCHITECT_PROMPT }] },
-            ...history // Inject previous conversation context
+            ...history
         ]
     });
 
@@ -135,24 +135,34 @@ async function chatWithArchitect(history, userMessage) {
         const result = await chat.sendMessage(userMessage);
         const responseText = result.response.text();
         
-        // Check if the Agent wants to build
-        if (responseText.includes('"action": "BUILD"')) {
-            try {
-                // Extract JSON from the response
-                const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                    return JSON.parse(jsonMatch[0]);
-                }
-            } catch (e) {
-                console.error("Architect JSON parse error");
+        // Robust JSON Extraction
+        let data;
+        try {
+            // Try to find JSON pattern
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                data = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error("No JSON");
             }
+        } catch (e) {
+            // Fallback if AI forgets to speak JSON (rare with Flash)
+            console.error("Architect JSON Error, falling back to text", responseText);
+            data = { 
+                reply: responseText, 
+                brief: {}, 
+                is_complete: false 
+            };
         }
-        
-        // Otherwise, just return the text reply
-        return { action: "CHAT", reply: responseText };
+
+        return data;
     } catch (error) {
         console.error("Architect Error:", error);
-        return { action: "CHAT", reply: "I lost my train of thought. Could you repeat that?" };
+        return { 
+            reply: "I seem to be having trouble connecting. Could you say that again?", 
+            brief: {}, 
+            is_complete: false 
+        };
     }
 }
 
