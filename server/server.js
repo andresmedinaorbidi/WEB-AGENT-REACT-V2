@@ -5,7 +5,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const AdmZip = require('adm-zip');
 const axios = require('axios');
-const { generateWebsite, editWebsite } = require('./agent');
+const { generateWebsite, editWebsite, chatWithArchitect } = require('./agent');
 const { exec } = require('child_process');
 require('dotenv').config();
 
@@ -218,6 +218,40 @@ app.get('/api/download/:sessionId', (req, res) => {
     res.set('Content-Disposition', `attachment; filename=${downloadName}`);
     res.set('Content-Length', data.length);
     res.send(data);
+});
+
+// API: CHAT (Updated with Debug Logs)
+app.post('/api/chat', async (req, res) => {
+    console.log("--------------------------------");
+    console.log("📩 Chat Request Received");
+    
+    // 1. Check if the body arrived correctly
+    console.log("Payload:", JSON.stringify(req.body, null, 2));
+    const { history, message } = req.body;
+
+    try {
+        // 2. Check if the function exists (Common import error)
+        if (typeof chatWithArchitect !== 'function') {
+            throw new Error("chatWithArchitect is NOT defined. Check your imports at the top of server.js!");
+        }
+
+        console.log("🤖 Asking Agent...");
+        const result = await chatWithArchitect(history || [], message);
+        
+        console.log("✅ Agent Replied:", JSON.stringify(result, null, 2));
+        res.json(result);
+
+    } catch (error) {
+        // 3. Log the EXACT error
+        console.error("❌ CHAT ERROR:", error);
+        
+        // Send details to frontend so you can see it in the browser too
+        res.status(500).json({ 
+            error: "Chat failed", 
+            details: error.message,
+            stack: error.stack
+        });
+    }
 });
 
 // --- SERVE FRONTEND (Production Only) ---
