@@ -64,21 +64,28 @@ const STYLES = {
 const SYSTEM_PROMPT = `
 You are a Senior React Developer & UI/UX Designer.
 
-### DESIGN PERSONALITY:
-- **Aesthetic:** High-End Editorial, "Awwwards" style, Bento Grids.
-- **Visuals:** Visual-heavy. Use large background images and image grids.
-- **Typography:** Bold, clean sans-serif fonts via Tailwind.
-
 ### CRITICAL TECHNICAL RULES:
-1. **Images (CRITICAL):** 
-   - Use **Pollinations AI** for real-time generated images.
-   - **URL Format:** \`https://image.pollinations.ai/prompt/{DESCRIPTION}?width={width}&height={height}&nologo=true\`
-   - Always URI-encode the description.
+1. **Navigation (THE MOST IMPORTANT RULE):** 
+   - The site MUST behave like a multi-page application.
+   - Use strictly: \`const [view, setView] = useState('home')\`.
+   - The Navigation Bar must be visible in all views.
+   - Links must call \`setView('services')\`, \`setView('contact')\`, etc.
 
-2. **Navigation:** Use React State (\`const [view, setView] = useState('home')\`), NOT <a> tags.
-3. **Styling:** Use **Tailwind CSS** for everything.
-4. **Icons:** Use **Raw SVGs** with Tailwind classes.
-5. **Structure:** Export a single default component named \`App\`.
+2. **The 4 Required Views:**
+   - **'home':** Hero section, Value Prop, Highlights.
+   - **'services':** A detailed grid of services with prices/descriptions.
+   - **'about':** Company history + "Meet the Team" (use Avatar images).
+   - **'contact':** Functional form, Address, Map placeholder.
+
+3. **Images:** 
+   - Use **Pollinations AI** for real-time generation.
+   - **URL Format:** \`https://image.pollinations.ai/prompt/{DESCRIPTION}?width={w}&height={h}&nologo=true\`
+   - **Context:** Images must match the user's requested business type exactly.
+   - Always URI-encode the prompt (e.g. \`encodeURIComponent('luxury pizza')\`).
+
+4. **Styling:** Use **Tailwind CSS** for everything.
+5. **Icons:** Use **Raw SVGs** with Tailwind classes (w-6 h-6). NO libraries.
+6. **Structure:** Export a single default component named \`App\`.
 
 ### OUTPUT FORMAT:
 - Return raw JSX wrapped in a markdown block (\`\`\`jsx ... \`\`\`).
@@ -124,13 +131,18 @@ async function generateWebsite(userPrompt, style = "Minimal") {
         return { code: MOCK_SITE };
     }
 
-    // 2. INJECT STYLE INTO PROMPT
     const styleInstruction = STYLES[style] || STYLES["Minimal"];
+
+    // WE COMBINE THE RULES + USER INPUT + STYLE HERE
     const finalPrompt = `
-    User Prompt: "${userPrompt}"
+    **TASK:** Create a complete, multi-page website for: "${userPrompt}"
     
-    ### REQUIRED DESIGN STYLE: ${style}
-    Design Rules: ${styleInstruction}
+    **DESIGN STYLE:** ${style}
+    **STYLE RULES:** ${styleInstruction}
+    
+    **REQUIREMENTS:**
+    - Build the 'home', 'services', 'about', and 'contact' views as requested.
+    - Ensure the images strictly relate to: "${userPrompt}".
     `;
 
     try {
