@@ -107,9 +107,9 @@ function saveSite(sessionId, rawCode) {
 
 app.post('/api/create', async (req, res) => {
     try {
-        const { prompt, sessionId } = req.body;
+        const { prompt, sessionId, style } = req.body;
         console.log("Gemini generating...");
-        const result = await generateWebsite(prompt);
+        const result = await generateWebsite(prompt, style);
         saveSite(sessionId, result.code);
         res.json({ 
             url: `${BASE_URL}/sites/${sessionId}/index.html?t=${Date.now()}`,
@@ -190,6 +190,34 @@ app.post('/api/deploy', async (req, res) => {
         }
         res.json({ url: `https://${domain}` });
     });
+});
+
+app.get('/api/download/:sessionId', (req, res) => {
+    const { sessionId } = req.params;
+    const folderPath = path.join(sitesDir, sessionId);
+
+    if (!fs.existsSync(folderPath)) return res.status(404).send("Session not found");
+
+    const zip = new AdmZip();
+    // Add the specific files we want the user to have
+    zip.addLocalFile(path.join(folderPath, 'app.jsx'));
+    zip.addLocalFile(path.join(folderPath, 'index.html'));
+    
+    // Create a dummy package.json so they can run it easily
+    const packageJson = {
+        name: "wflow-export",
+        version: "1.0.0",
+        dependencies: { "react": "^18.2.0", "react-dom": "^18.2.0" }
+    };
+    zip.addFile("package.json", Buffer.from(JSON.stringify(packageJson, null, 2)));
+
+    const downloadName = `wflow-${sessionId}.zip`;
+    const data = zip.toBuffer();
+
+    res.set('Content-Type', 'application/octet-stream');
+    res.set('Content-Disposition', `attachment; filename=${downloadName}`);
+    res.set('Content-Length', data.length);
+    res.send(data);
 });
 
 // --- SERVE FRONTEND (Production Only) ---

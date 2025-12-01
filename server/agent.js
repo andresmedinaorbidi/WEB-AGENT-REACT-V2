@@ -52,6 +52,15 @@ export default function App() {
 }
 `;
 
+// 1. DEFINE VIBES (Hidden instructions)
+const STYLES = {
+    "Minimal": "Use a monochromatic palette, lots of whitespace, Helvetica/Inter fonts, subtle borders, no shadows.",
+    "Neon": "Use a Cyberpunk aesthetic, black background, neon green/pink accents, glitch effects, tech-mono fonts.",
+    "Corporate": "Use a trustworthy blue/gray palette, structured grids, clean cards, professional serif/sans-serif pairing.",
+    "Brutalist": "Use raw outlines, high contrast, neo-brutalist shadows, bold typography, varying border thicknesses.",
+    "Pastel": "Use a soft, airy palette (cream, mint, peach), rounded corners, playful layout, bubble-like elements."
+};
+
 const SYSTEM_PROMPT = `
 You are a Senior React Developer & UI/UX Designer.
 
@@ -107,13 +116,22 @@ function cleanAndExtractCode(text) {
     }
 }
 
-async function generateWebsite(userPrompt) {
+async function generateWebsite(userPrompt, style = "Minimal") {
     // ⚡ MOCK TRAP
     if (userPrompt.trim() === "TEST") {
         console.log("⚡ MOCK MODE: Skipping Gemini API...");
         await new Promise(resolve => setTimeout(resolve, 2000)); 
         return { code: MOCK_SITE };
     }
+
+    // 2. INJECT STYLE INTO PROMPT
+    const styleInstruction = STYLES[style] || STYLES["Minimal"];
+    const finalPrompt = `
+    User Prompt: "${userPrompt}"
+    
+    ### REQUIRED DESIGN STYLE: ${style}
+    Design Rules: ${styleInstruction}
+    `;
 
     try {
         // Use creativeModel here
