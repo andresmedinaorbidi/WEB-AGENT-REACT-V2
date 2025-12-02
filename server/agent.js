@@ -14,7 +14,7 @@ const creativeModel = genAI.getGenerativeModel({ model: "gemini-3-pro-preview" }
 // Note: "gemini-3-pro-preview" is experimental. If it fails, use "gemini-1.5-pro".
 
 // 2. FAST MODEL (The Intern): Uses the cheapest model for edits/tweaks.
-const fastModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+const fastModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite", generationConfig: { responseMimeType: "application/json"} });
 
 // --- MOCK DATA FOR TESTING (Type "TEST" in prompt) ---
 const MOCK_SITE = `
@@ -94,7 +94,7 @@ You are **Teo**, the Senior Design Architect at wflow.
 You are conducting a client interview to build a website brief.
 
 ### YOUR GOAL:
-Gather these 5 key details. Be conversational, not robotic.
+Gather these 5 key details.
 1. **name**: Business Name
 2. **industry**: Industry/Niche (e.g. Coffee Shop, Portfolio)
 3. **audience**: Target Audience
@@ -103,28 +103,30 @@ Gather these 5 key details. Be conversational, not robotic.
 
 ### RULES:
 1. Ask ONE question at a time.
-2. **CRITICAL:** In *every* JSON response, you must output the **accumulated** brief data you have gathered so far. Do not leave fields null if you already know them.
-3. If a user answers, update the brief immediately.
-4. Once you have ALL 5, show the summary and ask to build.
-5. If the user says "Yes", "Go ahead", or "Build it", set "action": "BUILD".
+2. Be conversational in your "reply".
+3. **CRITICAL:** In EVERY response, you MUST output the 'brief' object with ALL information gathered so far. Do not output null for known fields.
+4. **THE ENDING:**
+   - As soon as you have ALL 5 fields, set "is_complete": true.
+   - Your "reply" should be: "Perfect. I've drafted your blueprint. Please review it below to start construction."
+   - Do NOT ask "Shall we build?". The UI handles the button.
 
-### OUTPUT FORMAT (JSON ONLY):
+### JSON SCHEMA:
 {
-  "reply": "Your conversational response...",
+  "reply": "String. Your message to the user.",
   "brief": {
-    "name": "...",     // Fill this as soon as known
-    "industry": "...", // Fill this as soon as known
-    "audience": "...",
-    "vibe": "...",
-    "sections": "..."
+    "name": "String or null",
+    "industry": "String or null",
+    "audience": "String or null",
+    "vibe": "String or null",
+    "sections": "String or null"
   },
-  "is_complete": false // Set to true ONLY when asking for final confirmation.
-  "action": "CHAT"     // Change to "BUILD" only on final user confirmation.
+  "is_complete": Boolean,
+  "action": "CHAT"
 }
 `;
 
 async function chatWithArchitect(history, userMessage) {
-    const chat = fastModel.startChat({
+    const chat = chatModel.startChat({
         history: [
             { role: "user", parts: [{ text: ARCHITECT_PROMPT }] },
             ...history
@@ -135,33 +137,16 @@ async function chatWithArchitect(history, userMessage) {
         const result = await chat.sendMessage(userMessage);
         const responseText = result.response.text();
         
-        // Robust JSON Extraction
-        let data;
-        try {
-            // Try to find JSON pattern
-            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                data = JSON.parse(jsonMatch[0]);
-            } else {
-                throw new Error("No JSON");
-            }
-        } catch (e) {
-            // Fallback if AI forgets to speak JSON (rare with Flash)
-            console.error("Architect JSON Error, falling back to text", responseText);
-            data = { 
-                reply: responseText, 
-                brief: {}, 
-                is_complete: false 
-            };
-        }
-
-        return data;
+        // Since we forced JSON mode, we can parse directly safely
+        return JSON.parse(responseText);
     } catch (error) {
         console.error("Architect Error:", error);
+        // Fallback JSON so the app doesn't crash
         return { 
-            reply: "I seem to be having trouble connecting. Could you say that again?", 
+            reply: "I'm having trouble processing that. Could you try again?", 
             brief: {}, 
-            is_complete: false 
+            is_complete: false,
+            action: "CHAT"
         };
     }
 }
