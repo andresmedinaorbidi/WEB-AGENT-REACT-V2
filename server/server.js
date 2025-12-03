@@ -227,7 +227,7 @@ app.post('/api/chat', async (req, res) => {
     
     // 1. Check if the body arrived correctly
     console.log("Payload:", JSON.stringify(req.body, null, 2));
-    const { history, message } = req.body;
+    const { history, message, currentBrief } = req.body;
 
     try {
         // 2. Check if the function exists (Common import error)
@@ -236,7 +236,7 @@ app.post('/api/chat', async (req, res) => {
         }
 
         console.log("🤖 Asking Agent...");
-        const result = await chatWithArchitect(history || [], message);
+        const result = await chatWithArchitect(history || [], message, currentBrief);
         
         console.log("✅ Agent Replied:", JSON.stringify(result, null, 2));
         res.json(result);

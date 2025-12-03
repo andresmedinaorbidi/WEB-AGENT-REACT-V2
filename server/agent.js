@@ -88,72 +88,111 @@ You are a Senior React Developer & UI/UX Designer.
 
 // New architect prompt that talks to user and creates a brief
 
-// --- 1. THE ARCHITECT (Chat Agent) ---
+// ==========================================
+//  PART 1: THE ARCHITECT (Server-Driven Logic)
+// ==========================================
+
 const ARCHITECT_PROMPT = `
-You are **Teo**, the Senior Design Architect at wflow.
-You are conducting a client interview to build a website brief.
+You are a Data Extraction Engine.
+Your ONLY job is to extract website requirements from the User's Message into a JSON object.
 
-### YOUR GOAL:
-Gather these 5 key details to complete the "brief" object:
-1. **name**: Business Name
-2. **industry**: Industry/Niche (e.g. Coffee Shop, Portfolio)
-3. **audience**: Target Audience
-4. **vibe**: Design Aesthetic (e.g. Cyberpunk, Minimal)
-5. **sections**: Key Sections needed (e.g. Hero, Menu, Contact)
+### FIELDS TO EXTRACT:
+1. **name** (Business Name)
+2. **industry** (Niche/Category)
+3. **audience** (Target Customers)
+4. **vibe** (Design Aesthetic)
+5. **sections** (Pages requested, e.g., Home, Contact)
 
-### LOGIC FLOW (Must follow strictly):
-1. **ANALYZE INPUT**: Look at the user's latest message. Does it contain information for ANY of the 5 fields? If yes, extract it immediately.
-2. **UPDATE STATE**: Update the "brief" object with the new information.
-3. **CHECK MISSING**: Look at the "brief" object. What fields are still "null"?
-4. **FORMULATE REPLY**:
-   - If fields are missing: Pick **ONE** missing field and ask about it.
-   - **CRITICAL**: NEVER ask for a field that is already filled (not null) in the "brief".
-   - If the user provided multiple details in one go, acknowledge them and move to the next missing field.
+### INPUT CONTEXT:
+- **Current Brief:** The data we already have.
+- **User Message:** The new text to parse.
 
 ### RULES:
-1. Ask ONE question at a time.
-2. Be conversational in your "reply".
-3. **CRITICAL:** In EVERY response, you MUST output the 'brief' object with ALL information gathered so far. Do not output null for known fields.
-4. **THE ENDING:**
-   - As soon as you have ALL 5 fields, set "is_complete": true.
-   - Your "reply" should be: "Perfect. I've drafted your blueprint. Please review it below to start construction."
-   - Do NOT ask "Shall we build?". The UI handles the button.
+1. **Start with the Current Brief.** Copy all existing non-null values.
+2. **Update** fields based *only* on the User Message.
+3. If the user mentions multiple things (e.g., "Bakery for kids"), fill multiple fields (industry="Bakery", audience="Kids").
+4. **Output JSON ONLY.** No text, no chatter.
 
-### JSON SCHEMA:
+### JSON FORMAT:
 {
-  "reply": "String. Your message to the user.",
   "brief": {
-    "name": "String or null",
-    "industry": "String or null",
-    "audience": "String or null",
-    "vibe": "String or null",
-    "sections": "String or null"
-  },
-  "is_complete": Boolean,
-  "action": "CHAT"
+    "name": "...",
+    "industry": "...",
+    "audience": "...",
+    "vibe": "...",
+    "sections": "..."
+  }
 }
 `;
 
-async function chatWithArchitect(history, userMessage) {
+async function chatWithArchitect(history, userMessage, currentBrief = {}) {
+    console.log("🔹 [Architect] Incoming State:", JSON.stringify(currentBrief));
+
     const chat = fastModel.startChat({
         history: [
-            { role: "user", parts: [{ text: ARCHITECT_PROMPT }] },
-            ...history
+            { role: "user", parts: [{ text: ARCHITECT_PROMPT }] }
+            // Note: We don't need full chat history for the extraction task, 
+            // just the current state and the new message. This reduces confusion.
         ]
     });
 
+    const messageWithContext = `
+    CURRENT BRIEF: ${JSON.stringify(currentBrief)}
+    USER MESSAGE: "${userMessage}"
+    `;
+
     try {
-        const result = await chat.sendMessage(userMessage);
+        const result = await chat.sendMessage(messageWithContext);
         const responseText = result.response.text();
+        const aiOutput = JSON.parse(responseText);
+
+        // 1. SAFE MERGE (Ensure we have all 5 keys)
+        // We force the structure so the code below never crashes
+        const safeBrief = {
+            name: aiOutput.brief?.name || currentBrief.name || null,
+            industry: aiOutput.brief?.industry || currentBrief.industry || null,
+            audience: aiOutput.brief?.audience || currentBrief.audience || null,
+            vibe: aiOutput.brief?.vibe || currentBrief.vibe || null,
+            sections: aiOutput.brief?.sections || currentBrief.sections || null,
+        };
+
+        console.log("🔸 [Architect] Extracted Data:", JSON.stringify(safeBrief));
+
+        // 2. SERVER-SIDE LOGIC (The "Manager")
+        // The code decides the next move, not the AI.
         
-        // Since we forced JSON mode, we can parse directly safely
-        return JSON.parse(responseText);
+        let nextReply = "";
+        let isComplete = false;
+
+        // CHECK SEQUENCE
+        if (!safeBrief.industry) {
+            nextReply = "¡Hola! Soy Teo. Para empezar, ¿a qué industria pertenece tu proyecto (ej: Restaurante, Portafolio)?";
+        } else if (!safeBrief.name) {
+            nextReply = `Entendido, un proyecto de ${safeBrief.industry}. ¿Cuál es el nombre de la marca?`;
+        } else if (!safeBrief.audience) {
+            nextReply = `Genial, ${safeBrief.name}. ¿A qué público objetivo nos dirigimos?`;
+        } else if (!safeBrief.vibe) {
+            nextReply = "¿Qué estilo visual o 'vibe' buscas? (ej: Minimalista, Cyberpunk, Elegante)";
+        } else if (!safeBrief.sections) {
+            nextReply = "¿Qué secciones necesitas? (ej: Inicio, Servicios, Contacto)";
+        } else {
+            // ALL FILLED
+            isComplete = true;
+            nextReply = "¡Perfecto! He creado el plan. Revísalo aquí abajo para comenzar la construcción.";
+        }
+
+        return {
+            reply: nextReply,
+            brief: safeBrief,
+            is_complete: isComplete,
+            action: isComplete ? "CHAT" : "CHAT" // UI handles the build button
+        };
+
     } catch (error) {
         console.error("Architect Error:", error);
-        // Fallback JSON so the app doesn't crash
         return { 
-            reply: "I'm having trouble processing that. Could you try again?", 
-            brief: {}, 
+            reply: "No te entendí bien. ¿Podrías repetirlo?", 
+            brief: currentBrief, 
             is_complete: false,
             action: "CHAT"
         };

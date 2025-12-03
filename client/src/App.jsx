@@ -36,13 +36,13 @@ const LoginScreen = ({ onLogin }) => {
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-[#beff50] rounded-2xl shadow-[0_10px_30px_-10px_rgba(190,255,80,0.5)] mb-6 transform -rotate-6 hover:rotate-0 transition-transform duration-500 cursor-pointer"><Zap size={32} className="text-black fill-current" /></div>
           <h1 className="text-4xl font-bold tracking-tight mb-2 text-gray-900">plinng<span className="text-[#60259f]">.flow</span></h1>
-          <p className="text-gray-500 font-medium">The AI Architect for Modern Web</p>
+          <p className="text-gray-500 font-medium">Crea tu página web en menos de 5 minutos</p>
         </div>
         <div className="p-8 rounded-3xl border border-white/40 bg-white/60 backdrop-blur-2xl shadow-2xl shadow-gray-200/50">
           <form onSubmit={handleLogin} className="space-y-5">
-            <div><label className="text-[10px] font-bold text-[#60259f] uppercase tracking-widest ml-1 mb-2 block">Work Email</label><input type="email" placeholder="name@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-white/50 border border-gray-200/80 rounded-xl px-4 py-3.5 text-gray-900 focus:border-[#60259f] focus:ring-4 focus:ring-[#60259f]/5 outline-none transition-all placeholder-gray-400 font-medium" required /></div>
-            <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Password</label><input type="password" placeholder="••••••••" className="w-full bg-white/50 border border-gray-200/80 rounded-xl px-4 py-3.5 text-gray-900 focus:border-[#60259f] focus:ring-4 focus:ring-[#60259f]/5 outline-none transition-all placeholder-gray-400 font-medium" /></div>
-            <button type="submit" disabled={loading} className="w-full py-4 bg-[#beff50] hover:bg-[#b0ef40] text-black font-bold text-sm rounded-xl transition-all shadow-lg hover:shadow-xl hover:shadow-[#beff50]/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2 mt-4">{loading ? <Loader2 className="animate-spin" /> : <>Start Designing <ArrowRight size={16}/></>}</button>
+            <div><label className="text-[10px] font-bold text-[#60259f] uppercase tracking-widest ml-1 mb-2 block">Tu correo</label><input type="email" placeholder="miempresa@correo.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-white/50 border border-gray-200/80 rounded-xl px-4 py-3.5 text-gray-900 focus:border-[#60259f] focus:ring-4 focus:ring-[#60259f]/5 outline-none transition-all placeholder-gray-400 font-medium" required /></div>
+            <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Tu contraseña</label><input type="password" placeholder="••••••••" className="w-full bg-white/50 border border-gray-200/80 rounded-xl px-4 py-3.5 text-gray-900 focus:border-[#60259f] focus:ring-4 focus:ring-[#60259f]/5 outline-none transition-all placeholder-gray-400 font-medium" /></div>
+            <button type="submit" disabled={loading} className="w-full py-4 bg-[#beff50] hover:bg-[#b0ef40] text-black font-bold text-sm rounded-xl transition-all shadow-lg hover:shadow-xl hover:shadow-[#beff50]/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2 mt-4">{loading ? <Loader2 className="animate-spin" /> : <>Empieza ahora <ArrowRight size={16}/></>}</button>
           </form>
         </div>
       </div>
@@ -71,7 +71,7 @@ export default function App() {
   const [appState, setAppState] = useState('login');
   
   // Data
-  const [messages, setMessages] = useState([{ role: 'ai', text: "Hi! I'm Teo, your Plinng Architect. Tell me about your dream website." }]);
+  const [messages, setMessages] = useState([{ role: 'ai', text: "Hola! Soy Teo. ¿Qué sitio web quieres crear hoy?" }]);
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [history, setHistory] = useState([]);
@@ -140,7 +140,7 @@ export default function App() {
          if (window.innerWidth < 768) setMobileTab('preview');
       } else {
          const apiHistory = messages.map(m => ({ role: m.role === 'ai' ? 'model' : 'user', parts: [{ text: m.text }] }));
-         const res = await axios.post(`${API_URL}/chat`, { history: apiHistory, message: userText });
+         const res = await axios.post(`${API_URL}/chat`, { history: apiHistory, message: userText, currentBrief: liveBrief });
          const { reply, brief, is_complete, action } = res.data; 
          
          if (brief) {
@@ -168,35 +168,27 @@ export default function App() {
   };
 
   const startBuild = async () => {
-    // 1. VISUAL FEEDBACK FIRST (Stay in Chat Mode for a moment)
+    // 1. CHANGE VIEW IMMEDIATELY
+    setAppState('builder'); 
     setLoading(true); 
+    setLoadingText('Teo is architecting...');
     
-    // 2. DELAY THE TRANSITION (The "Handover" Effect)
-    setTimeout(() => {
-        setAppState('builder'); // Switch screens after 1.5s
-        setLoadingText('Architecting your vision...');
-    }, 1500);
+    // --- ⏱️ START TIMER ---
+    const startTime = Date.now();
 
-    // 3. START THE INTERVAL FOR TEXT (Runs in background)
-    const texts = ['Drafting Layout...', 'Compiling React...', 'Applying Tailwind...', 'Polishing Assets...'];
+    const texts = ['Drafting Layout...', 'Applying Plinng Styles...', 'Compiling React...', 'Finalizing...'];
     let idx = 0; 
     const interval = setInterval(() => { setLoadingText(texts[idx++ % texts.length]); }, 2000);
     
-    // 4. PREPARE THE PROMPT
-    const prompt = `
-      Business: ${liveBrief.name || 'My Business'}. 
-      Industry: ${liveBrief.industry || 'General'}. 
-      Audience: ${liveBrief.audience || 'Everyone'}. 
-      Sections: ${liveBrief.sections || 'Home, Contact'}. 
-      Vibe: ${liveBrief.vibe || 'Modern'}.
-    `;
+    // Construct Prompt
+    const prompt = `Business: ${liveBrief.name}. Industry: ${liveBrief.industry}. Audience: ${liveBrief.audience}. Sections: ${liveBrief.sections}. Vibe: ${liveBrief.vibe}.`;
 
     try {
-      // 5. CALL API (Async)
+      // Call API
       const res = await axios.post(`${API_URL}/create`, { 
         prompt, 
         sessionId, 
-        style: liveBrief.vibe || 'Minimal' 
+        style: liveBrief.vibe || 'Modern' 
       });
       
       clearInterval(interval);
@@ -204,20 +196,27 @@ export default function App() {
       setRawCode(res.data.code);
       saveToHistory(prompt, res.data.code);
       
-      setMessages(prev => [...prev, { role: 'ai', text: "I've built the first version. Let me know if you want to change anything!" }]);
+      // --- ⏱️ STOP TIMER & CALCULATE ---
+      const endTime = Date.now();
+      const duration = ((endTime - startTime) / 1000).toFixed(1); // Calculate seconds with 1 decimal
+
+      // --- SEND SUCCESS MESSAGE WITH TIME ---
+      setMessages(prev => [...prev, { 
+        role: 'ai', 
+        text: `Done! Your website took ${duration} seconds to complete. You just saved hours of work! ⚡ Let me know if you want to refine anything.` 
+      }]);
       
       if (window.innerWidth < 768) setMobileTab('preview');
 
     } catch (e) { 
       clearInterval(interval);
-      // If failed, go back to Architect to show error
+      
+      // If error, go back to chat to explain
       setAppState('architect'); 
-      setLoading(false); 
-      setMessages(prev => [...prev, { role: 'ai', text: "Generation failed. Please try again." }]); 
+      setMessages(prev => [...prev, { role: 'ai', text: "I encountered an error during construction. Let's try again." }]); 
     }
     
-    // Note: We DON'T set loading(false) here on success, 
-    // because the Builder View handles hiding the loading screen when data arrives.
+    setLoading(false);
   };
 
   const deploy = async () => { setLoading(true); setLoadingText('Publishing to Web...'); try { const res = await axios.post(`${API_URL}/deploy`, { sessionId }); setDeployUrl(res.data.url); setMessages(prev => [...prev, { role: 'ai', text: `Site is live! ${res.data.url}` }]); } catch (e) { alert("Deploy failed"); } setLoading(false); };
@@ -252,7 +251,7 @@ export default function App() {
                     {/* Header (Scrolls with messages now to avoid fixed overlap) */}
                     <div className="flex flex-col items-center justify-center gap-2 mb-10 opacity-80">
                         <div className="w-10 h-10 bg-[#beff50] rounded-xl flex items-center justify-center shadow-lg shadow-[#beff50]/30 transform -rotate-3"><Zap size={20} className="text-black fill-current"/></div>
-                        <span className="font-bold tracking-tight text-gray-400 text-sm">plinng architect</span>
+                        <span className="font-bold tracking-tight text-gray-400 text-sm">plinng.flow</span>
                     </div>
 
                     {messages.map((msg, i) => (
@@ -334,8 +333,8 @@ export default function App() {
            <div className="hidden lg:flex w-96 border-l border-white/40 bg-white/40 backdrop-blur-xl p-8 flex-col justify-center shadow-[-20px_0_40px_-10px_rgba(0,0,0,0.02)] relative z-20">
               <div className="mb-10">
                  <div className="h-1.5 w-12 bg-[#beff50] rounded-full mb-4"></div>
-                 <h2 className="text-xs font-bold text-gray-900 uppercase tracking-widest mb-2">Live Context</h2>
-                 <p className="text-xs text-gray-500 font-medium leading-relaxed">Teo is gathering requirements to build your manifest.</p>
+                 <h2 className="text-xs font-bold text-gray-900 uppercase tracking-widest mb-2">Sobre tu web</h2>
+                 <p className="text-xs text-gray-500 font-medium leading-relaxed">Estoy organizando la información de tu web.</p>
               </div>
               <div className="space-y-8">
                  {['name', 'industry', 'audience', 'vibe', 'sections'].map((field) => (
