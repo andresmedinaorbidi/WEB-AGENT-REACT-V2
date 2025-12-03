@@ -93,6 +93,8 @@ const ARCHITECT_PROMPT = `
 You are **Teo**, the Senior Design Architect at wflow.
 You are conducting a client interview to build a website brief.
 
+Important, you ask a first initial question where toy ask the user about their dream website, the user may o may not give you many or little details about the website, so if the user gives you details that will be asked in a next question, skip it, you already have the information, use this first question to understand what you are missing.
+
 ### YOUR GOAL:
 Gather these 5 key details.
 1. **name**: Business Name
@@ -126,7 +128,7 @@ Gather these 5 key details.
 `;
 
 async function chatWithArchitect(history, userMessage) {
-    const chat = chatModel.startChat({
+    const chat = fastModel.startChat({
         history: [
             { role: "user", parts: [{ text: ARCHITECT_PROMPT }] },
             ...history
