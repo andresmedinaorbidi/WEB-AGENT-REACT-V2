@@ -151,6 +151,7 @@ export default function App() {
                  if (brief.audience) newBrief.audience = brief.audience;
                  if (brief.vibe) newBrief.vibe = brief.vibe;
                  if (brief.sections) newBrief.sections = brief.sections;
+                 if (brief.context) newBrief.context = brief.context;
                  return newBrief;
              });
          }
@@ -181,7 +182,7 @@ export default function App() {
     const interval = setInterval(() => { setLoadingText(texts[idx++ % texts.length]); }, 2000);
     
     // Construct Prompt
-    const prompt = `Business: ${liveBrief.name}. Industry: ${liveBrief.industry}. Audience: ${liveBrief.audience}. Sections: ${liveBrief.sections}. Vibe: ${liveBrief.vibe}.`;
+    const prompt = `Business: ${liveBrief.name}. Industry: ${liveBrief.industry}. Audience: ${liveBrief.audience}. Sections: ${liveBrief.sections}. Vibe: ${liveBrief.vibe}. Context: ${liveBrief.context || 'None'}.`;
 
     try {
       // Call API
@@ -337,7 +338,7 @@ export default function App() {
                  <p className="text-xs text-gray-500 font-medium leading-relaxed">Estoy organizando la información de tu web.</p>
               </div>
               <div className="space-y-8">
-                 {['name', 'industry', 'audience', 'vibe', 'sections'].map((field) => (
+                 {['name', 'industry', 'audience', 'vibe', 'sections', 'context'].map((field) => (
                     <div key={field} className={`transition-all duration-700 ${liveBrief[field] ? 'opacity-100 translate-x-0' : 'opacity-30 translate-x-4 grayscale'}`}>
                        <div className="flex items-center gap-2 mb-2">
                           {liveBrief[field] ? <CheckCircle2 size={16} className="text-[#beff50] fill-green-900" /> : <Circle size={16} className="text-gray-300" />}

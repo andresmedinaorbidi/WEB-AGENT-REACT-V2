@@ -102,6 +102,7 @@ Your ONLY job is to extract website requirements from the User's Message into a 
 3. **audience** (Target Customers)
 4. **vibe** (Design Aesthetic)
 5. **sections** (Pages requested, e.g., Home, Contact)
+6. **context** (Any specific details, history, slogan, or extra constraints)
 
 ### INPUT CONTEXT:
 - **Current Brief:** The data we already have.
@@ -111,7 +112,8 @@ Your ONLY job is to extract website requirements from the User's Message into a 
 1. **Start with the Current Brief.** Copy all existing non-null values.
 2. **Update** fields based *only* on the User Message.
 3. If the user mentions multiple things (e.g., "Bakery for kids"), fill multiple fields (industry="Bakery", audience="Kids").
-4. **Output JSON ONLY.** No text, no chatter.
+4. If the user shares a story or specific requirement (e.g., "We started in 1990" or "Use a cat mascot"), put it in **context**.
+5. **Output JSON ONLY.** No text, no chatter.
 
 ### JSON FORMAT:
 {
@@ -120,7 +122,8 @@ Your ONLY job is to extract website requirements from the User's Message into a 
     "industry": "...",
     "audience": "...",
     "vibe": "...",
-    "sections": "..."
+    "sections": "...",
+    "context": "..."
   }
 }
 `;
@@ -154,6 +157,7 @@ async function chatWithArchitect(history, userMessage, currentBrief = {}) {
             audience: aiOutput.brief?.audience || currentBrief.audience || null,
             vibe: aiOutput.brief?.vibe || currentBrief.vibe || null,
             sections: aiOutput.brief?.sections || currentBrief.sections || null,
+            context: aiOutput.brief?.context || currentBrief.context || null,
         };
 
         console.log("🔸 [Architect] Extracted Data:", JSON.stringify(safeBrief));
@@ -261,6 +265,7 @@ async function generateWebsite(userPrompt, style = "Modern") {
     **2. ✍️ COPYWRITING & TONE (Audience-Driven):**
     - Analyze the **"Audience"** and **"Industry"** fields.
     - **Rule:** Adapt the writing style (Microcopy, Headlines, CTAs) to match this specific audience.
+    - **CRITICAL:** Check the **"Context"** field. If the user provided specific details (e.g., "Founded in 1990", "We sell organic cookies"), you MUST weave these facts into the generated text.
     - *Scenario A:* If Audience is "Gen Z skaters", use slang, lowercase, edgy tone.
     - *Scenario B:* If Audience is "Medical Professionals", use precise, formal, trustworthy tone.
     - *Scenario C:* If Audience is "Children", use simple words and enthusiastic tone.
