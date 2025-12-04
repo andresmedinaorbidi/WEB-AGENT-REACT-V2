@@ -233,7 +233,9 @@ function cleanAndExtractCode(text) {
     }
 }
 
-async function generateWebsite(userPrompt, style = "Minimal") {
+// --- agent.js ---
+
+async function generateWebsite(userPrompt, style = "Modern") {
     // ⚡ MOCK TRAP
     if (userPrompt.trim() === "TEST") {
         console.log("⚡ MOCK MODE: Skipping Gemini API...");
@@ -241,33 +243,47 @@ async function generateWebsite(userPrompt, style = "Minimal") {
         return { code: MOCK_SITE };
     }
 
-    const styleInstruction = STYLES[style] || STYLES["Minimal"];
+    const vibe = style || "Modern";
 
-    // WE COMBINE THE RULES + USER INPUT + STYLE HERE
+    // --- THE NEW "CONTEXT-AWARE" PROMPT ---
     const finalPrompt = `
-    **TASK:** Create a complete, multi-page website for: "${userPrompt}"
+    **TASK:** Create a complete, multi-page website based on the structured Brief below.
+
+    **THE BRIEF:**
+    ${userPrompt}
+
+    **1. 🏗️ DYNAMIC ARCHITECTURE (Sections):**
+    - Analyze the **"Sections"** requested in the Brief (e.g., "Menu, Booking, Contact").
+    - **Rule:** You MUST create a view/page for EVERY section listed. 
+    - Do not just make generic "Home/About/Services". If they asked for "Portfolio" or "Pricing", build those specific views.
+    - Use \`const [view, setView] = useState('Home')\` to handle navigation.
+
+    **2. ✍️ COPYWRITING & TONE (Audience-Driven):**
+    - Analyze the **"Audience"** and **"Industry"** fields.
+    - **Rule:** Adapt the writing style (Microcopy, Headlines, CTAs) to match this specific audience.
+    - *Scenario A:* If Audience is "Gen Z skaters", use slang, lowercase, edgy tone.
+    - *Scenario B:* If Audience is "Medical Professionals", use precise, formal, trustworthy tone.
+    - *Scenario C:* If Audience is "Children", use simple words and enthusiastic tone.
     
-    **DESIGN STYLE:** ${style}
-    **STYLE RULES:** ${styleInstruction}
-    
+    **3. 🎨 PROCEDURAL STYLING (Vibe-Driven):**
+    - The user wants a **"${vibe}"** aesthetic.
+    - Interpret this vibe into a custom Tailwind Design System (Colors, Fonts, Spacing, Border Radius).
+    - **Images:** Generate Pollinations AI images that strictly match the Industry + Vibe.
+
     **REQUIREMENTS:**
-    - Build the 'home', 'services', 'about', and 'contact' views as requested.
-    - Ensure the images strictly relate to: "${userPrompt}".
+    - Export a single component \`App\`.
+    - Use **Raw SVGs** for icons (do not assume lucide-react is installed).
+    - Ensure the site feels complete, not like a template.
     `;
 
     try {
-        // Use creativeModel here
         const chat = creativeModel.startChat({
             history: [{ role: "user", parts: [{ text: SYSTEM_PROMPT }] }]
         });
         
-        console.log("Agent: Sending prompt...");
-        const result = await chat.sendMessage(`Create a website for: ${userPrompt}`);
-        const text = result.response.text();
-        
-        console.log("Agent: Parsing response...");
-        // This function exists now!
-        return cleanAndExtractCode(text);
+        console.log(`Agent: Generating for "${vibe}" with Dynamic Copy...`);
+        const result = await chat.sendMessage(finalPrompt);
+        return cleanAndExtractCode(result.response.text());
     } catch (error) {
         console.error("Gemini API Error:", error);
         throw error;
