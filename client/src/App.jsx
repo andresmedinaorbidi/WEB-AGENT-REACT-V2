@@ -7,12 +7,22 @@ import {
   Download, Upload, LogOut, X, MessageSquare, Palette, CheckCircle2, Circle, ArrowRight
 } from 'lucide-react';
 
+// 1. Importar arriba con los otros imports
+import teoImage from './assets/teo.avif'; // Asegúrate que la ruta sea correcta
+
 const API_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:3000/api' 
   : '/api';
 
 // --- ASSETS ---
-const TeoAvatar = () => <div className="w-8 h-8 min-w-[2rem] rounded-full bg-plinng-purple flex items-center justify-center text-white font-bold text-xs shadow-md">T</div>;
+// 2. Usar en el componente
+const TeoAvatar = () => (
+  <img 
+    src={teoImage} 
+    alt="Teo AI" 
+    className="w-8 h-8 min-w-[2rem] rounded-full object-cover shadow-md border border-gray-200"
+  />
+);
 const UserAvatar = () => <div className="w-8 h-8 min-w-[2rem] rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold text-xs">Me</div>;
 
 // --- EXTRACT URL ---
@@ -21,52 +31,210 @@ const extractUrl = (text) => {
     return match ? match[0] : null;
 };
 
-// --- LOGIN SCREEN ---
-const LoginScreen = ({ onLogin }) => {
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
+// --- LANDING SCREEN (Input Inicial) ---
+const LandingScreen = ({ onStart }) => {
+  const [input, setInput] = useState('');
 
-  const handleLogin = (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setLoading(true);
-    setTimeout(() => { onLogin(email || 'Guest'); }, 1500);
+    if (!input.trim()) return;
+    onStart(input);
   };
 
   return (
     <div className="h-[100dvh] w-full bg-[#f8f9fc] flex items-center justify-center p-6 relative overflow-hidden font-sans text-gray-900">
+      {/* Background Effects */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#60259f]/5 blur-[120px] animate-pulse"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#beff50]/20 blur-[120px] animate-pulse delay-1000"></div>
-      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(#111 1px, transparent 1px), linear-gradient(90deg, #111 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
+      
+      <div className="w-full max-w-2xl z-10 animate-in fade-in zoom-in duration-700 flex flex-col items-center">
+        
+        {/* Logo / Brand */}
+        <div className="mb-10 text-center">
+             <div className="inline-flex items-center justify-center w-16 h-16 bg-[#beff50] rounded-2xl shadow-[0_10px_30px_-10px_rgba(190,255,80,0.5)] mb-6 transform -rotate-3"><Zap size={32} className="text-black fill-current" /></div>
+             <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-4 text-gray-900">plinng<span className="text-[#60259f]">.flow</span></h1>
+             <p className="text-xl text-gray-500 font-medium max-w-lg mx-auto leading-relaxed">
+                Describe tu sitio web ideal y deja que 
+                
+                {/* INICIO DE LA CÁPSULA */}
+                <span className="inline-flex items-center gap-2 bg-white border border-gray-200 rounded-full px-2 py-1 mx-1.5 align-middle shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] -translate-y-[2px]">
+                  <img 
+                    src={teoImage} 
+                    alt="Teo" 
+                    className="w-5 h-5 rounded-full object-cover" 
+                  />
+                  <span className="text-[#60259f] font-bold text-xl pr-1">Teo</span>
+                </span>
+                {/* FIN DE LA CÁPSULA */}
 
-      <div className="w-full max-w-md z-10 animate-in fade-in zoom-in duration-700">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#beff50] rounded-2xl shadow-[0_10px_30px_-10px_rgba(190,255,80,0.5)] mb-6 transform -rotate-6 hover:rotate-0 transition-transform duration-500 cursor-pointer"><Zap size={32} className="text-black fill-current" /></div>
-          <h1 className="text-4xl font-bold tracking-tight mb-2 text-gray-900">plinng<span className="text-[#60259f]">.flow</span></h1>
-          <p className="text-gray-500 font-medium">Crea tu página web en menos de 5 minutos</p>
+                lo construya en segundos.
+              </p>
         </div>
-        <div className="p-8 rounded-3xl border border-white/40 bg-white/60 backdrop-blur-2xl shadow-2xl shadow-gray-200/50">
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div><label className="text-[10px] font-bold text-[#60259f] uppercase tracking-widest ml-1 mb-2 block">Tu correo</label><input type="email" placeholder="miempresa@correo.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-white/50 border border-gray-200/80 rounded-xl px-4 py-3.5 text-gray-900 focus:border-[#60259f] focus:ring-4 focus:ring-[#60259f]/5 outline-none transition-all placeholder-gray-400 font-medium" required /></div>
-            <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Tu contraseña</label><input type="password" placeholder="••••••••" className="w-full bg-white/50 border border-gray-200/80 rounded-xl px-4 py-3.5 text-gray-900 focus:border-[#60259f] focus:ring-4 focus:ring-[#60259f]/5 outline-none transition-all placeholder-gray-400 font-medium" /></div>
-            <button type="submit" disabled={loading} className="w-full py-4 bg-[#beff50] hover:bg-[#b0ef40] text-black font-bold text-sm rounded-xl transition-all shadow-lg hover:shadow-xl hover:shadow-[#beff50]/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2 mt-4">{loading ? <Loader2 className="animate-spin" /> : <>Empieza ahora <ArrowRight size={16}/></>}</button>
-          </form>
+
+        {/* Hero Input */}
+        <form onSubmit={handleSubmit} className="w-full relative group">
+            <div className="absolute inset-0 bg-gradient-to-r from-[#beff50] to-[#60259f] rounded-2xl blur opacity-20 group-hover:opacity-30 transition-opacity duration-500"></div>
+            <div className="relative bg-white rounded-2xl shadow-2xl shadow-gray-200/50 p-2 flex items-center gap-2 border border-gray-100 focus-within:border-[#60259f]/30 transition-all">
+                <textarea 
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                        if(e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSubmit(e);
+                        }
+                    }}
+                    placeholder="Ej: Una pizzería llamada Luigi's con estilo cyberpunk y delivery..."
+                    className="flex-1 bg-transparent border-none text-lg px-4 py-4 focus:ring-0 outline-none placeholder-gray-300 min-h-[60px] max-h-[120px] resize-none text-gray-800 font-medium"
+                    autoFocus
+                />
+                <button 
+                    type="submit" 
+                    disabled={!input.trim()}
+                    className="h-14 w-14 rounded-xl bg-[#60259f] hover:bg-[#4c1d7a] text-white flex items-center justify-center transition-all disabled:opacity-50 disabled:scale-95 shadow-lg hover:shadow-purple-500/30 hover:scale-105 active:scale-95 shrink-0"
+                >
+                    <ArrowRight size={24} />
+                </button>
+            </div>
+        </form>
+
+        {/* Suggestions */}
+        <div className="mt-8 flex flex-wrap justify-center gap-3 opacity-60">
+            {["Portafolio minimalista", "Landing page para SaaS", "Tienda de café vintage"].map(tag => (
+                <button key={tag} onClick={() => setInput(tag)} className="px-4 py-2 bg-white rounded-full text-xs font-bold text-gray-500 border border-gray-200 hover:border-[#60259f] hover:text-[#60259f] transition-colors">
+                    {tag}
+                </button>
+            ))}
         </div>
       </div>
     </div>
   );
 };
 
-// --- BOOT SCREEN ---
-const BootScreen = ({ onComplete }) => {
-  useEffect(() => { const timer = setTimeout(onComplete, 3500); return () => clearTimeout(timer); }, []);
+// --- PROCESSING SCREEN (Con efecto Shimmer Diagonal Suave + Pulse) ---
+const ProcessingScreen = ({ initialPrompt, onAnalysisComplete }) => {
+  const [status, setStatus] = useState('Inicializando motores...');
+  
+  useEffect(() => {
+    const processPrompt = async () => {
+        try {
+            // 1. URL Analysis
+            setStatus('Detectando referencias...');
+            let scrapedContext = "";
+            const urlMatch = initialPrompt.match(/(https?:\/\/[^\s]+)/);
+            
+            if (urlMatch) {
+                setStatus(`Analizando estructura de ${new URL(urlMatch[0]).hostname}...`);
+                try {
+                    const scrapeRes = await axios.post(`${API_URL}/analyze`, { url: urlMatch[0] });
+                    scrapedContext = `
+                    --- START OF SYSTEM INJECTION ---
+                    SOURCE: ${urlMatch[0]}
+                    ${scrapeRes.data.rawData}
+                    INSTRUCTION: Use data above to fill brief fields.
+                    --- END OF SYSTEM INJECTION ---
+                    `;
+                } catch (e) {
+                    console.error("Scrape failed", e);
+                }
+            }
+
+            // 2. Architect Call
+            setStatus('Teo está organizando tus ideas...');
+            const res = await axios.post(`${API_URL}/chat`, { 
+                history: [], 
+                message: initialPrompt + scrapedContext, 
+                currentBrief: {} 
+            });
+
+            const { reply, brief, is_complete } = res.data;
+
+            // 3. Finalizing
+            setStatus('Generando blueprint...');
+            setTimeout(() => {
+                onAnalysisComplete({
+                    initialResponse: reply,
+                    extractedBrief: brief,
+                    isComplete: is_complete
+                });
+            }, 2500); 
+
+        } catch (error) {
+            console.error(error);
+            onAnalysisComplete({
+                initialResponse: "Hubo un error de conexión, pero podemos continuar.",
+                extractedBrief: {},
+                isComplete: false
+            });
+        }
+    };
+
+    processPrompt();
+  }, [initialPrompt]);
+
   return (
     <div className="h-[100dvh] w-full bg-[#f8f9fc] flex flex-col items-center justify-center relative overflow-hidden font-sans text-gray-900">
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#60259f]/5 blur-[120px] animate-pulse"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#beff50]/20 blur-[120px] animate-pulse delay-1000"></div>
-      <div className="relative z-10 flex flex-col items-center">
-        <div className="relative mb-12"><div className="absolute inset-0 bg-[#beff50] blur-3xl opacity-40 animate-pulse rounded-full"></div><div className="relative w-24 h-24 bg-[#beff50] rounded-3xl flex items-center justify-center shadow-[0_20px_50px_-10px_rgba(190,255,80,0.5)] animate-bounce"><Zap size={48} className="text-black fill-current" /></div></div>
-        <div className="w-64 h-2 bg-gray-200/80 rounded-full overflow-hidden shadow-inner backdrop-blur-sm"><div className="h-full bg-[#60259f] animate-[width_3s_ease-in-out_forwards]" style={{ width: '0%' }}></div></div>
-        <div className="mt-8 font-medium text-sm text-gray-400 space-y-2 text-center font-mono tracking-tight"><p className="animate-[fadeIn_0.5s_ease-out_0.5s_forwards] opacity-0 flex items-center justify-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span> Initializing Plinng Cloud...</p><p className="animate-[fadeIn_0.5s_ease-out_1.5s_forwards] opacity-0 flex items-center justify-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#60259f]"></span> Syncing with Teo AI...</p><p className="animate-[fadeIn_0.5s_ease-out_2.5s_forwards] opacity-0 text-[#60259f] font-bold tracking-widest uppercase text-xs pt-2">System Ready</p></div>
+      
+      {/* DEFINICIÓN DE ANIMACIONES CSS */}
+      <style>{`
+        /* 1. Shimmer Diagonal */
+        @keyframes text-shimmer-angled {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 100% 50%; }
+        }
+
+        /* 2. Respiración (Pulse) Sutil */
+        @keyframes soft-breathe {
+          0%, 100% { transform: scale(1); opacity: 0.95; }
+          50% { transform: scale(1.02); opacity: 1; }
+        }
+
+        .animate-shimmer-slow {
+          background-size: 300% auto; /* Aumentamos tamaño para suavizar bordes */
+          animation: text-shimmer-angled 4s linear infinite; /* Mucho más lento (8s) */
+        }
+
+        .animate-breathe {
+          animation: soft-breathe 4s ease-in-out infinite; /* Respiración orgánica */
+        }
+      `}</style>
+
+      <div className="w-full max-w-4xl px-6 relative z-10 flex flex-col items-center text-center">
+        
+        {/* Animated Icon */}
+        <div className="relative mb-12 animate-breathe">
+            <div className="absolute inset-0 bg-[#beff50] blur-3xl opacity-40 animate-pulse rounded-full"></div>
+            <div className="relative w-24 h-24 bg-white rounded-3xl flex items-center justify-center shadow-xl border border-gray-100">
+                <Sparkles size={40} className="text-[#60259f]" />
+            </div>
+        </div>
+
+        {/* 
+            USER PROMPT MEJORADO 
+            - animate-shimmer-slow: Mueve el gradiente diagonalmente.
+            - animate-breathe: Hace que todo el bloque de texto pulse suavemente.
+        */}
+        <div className="mb-12 relative w-full animate-breathe">
+             <h2 
+                className="text-3xl md:text-5xl font-bold leading-tight bg-clip-text text-transparent animate-shimmer-slow pb-3"
+                style={{
+                  // Gradiente Diagonal (110deg)
+                  // Separación amplia (35% -> 65%) para que no sea una línea dura
+                  backgroundImage: 'linear-gradient(110deg, #111827 35%, #beff50 48%, #60259f 52%, #111827 65%)'
+                }}
+             >
+                "{initialPrompt.length > 80 ? initialPrompt.substring(0, 80) + '...' : initialPrompt}"
+             </h2>
+             
+             {/* Línea decorativa inferior */}
+             <div className="h-1 w-24 bg-gradient-to-r from-[#beff50] to-[#60259f] rounded-full mx-auto mt-8 opacity-50"></div>
+        </div>
+
+        {/* Status Text */}
+        <p className="text-sm font-mono text-[#60259f] uppercase tracking-widest animate-pulse font-bold">
+            {status}
+        </p>
+
       </div>
     </div>
   );
@@ -74,10 +242,12 @@ const BootScreen = ({ onComplete }) => {
 
 // --- MAIN APP ---
 export default function App() {
-  const [appState, setAppState] = useState('login');
+  const [appState, setAppState] = useState('landing'); // Cambiado de 'login' a 'landing'
+  const [initialPrompt, setInitialPrompt] = useState(''); // Nuevo estado para guardar el primer mensaje
   
   // Data
-  const [messages, setMessages] = useState([{ role: 'ai', text: "Hola! Soy Teo. ¿Qué sitio web quieres crear hoy?" }]);
+  // Inicializamos messages vacíos, los llenaremos tras el procesamiento
+  const [messages, setMessages] = useState([]); 
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [history, setHistory] = useState([]);
@@ -127,6 +297,34 @@ export default function App() {
   const loadFromHistory = async (item) => { setLoading(true); setLoadingText('Restoring...'); if (appState === 'architect') setAppState('builder'); setActiveSidebarTab('chat'); setMobileTab('preview'); setRawCode(item.code); setMessages(prev => [...prev, { role: 'user', text: `Restoring: ${item.prompt}` }, { role: 'ai', text: "Restoring session." }]); try { const res = await axios.post(`${API_URL}/restore`, { sessionId, code: item.code }); setSiteUrl(res.data.url); } catch (e) { alert("Restore failed"); } setLoading(false); };
   const clearHistory = () => { if(confirm('Clear all?')) { setHistory([]); localStorage.removeItem('wflow_history'); }};
   const downloadCode = () => { window.location.href = `${API_URL}/download/${sessionId}`; };
+
+  // HANDLERS DEL NUEVO FLUJO
+  
+  // 1. Usuario envía el prompt en el Landing
+  const handleStart = (prompt) => {
+      setInitialPrompt(prompt);
+      setAppState('processing'); // Pasamos a la pantalla de carga inteligente
+  };
+
+  // 2. Procesamiento completado (viene de ProcessingScreen)
+  const handleAnalysisComplete = (data) => {
+      const { initialResponse, extractedBrief, isComplete } = data;
+      
+      // A. Establecer el Brief extraído
+      setLiveBrief(prev => ({ ...prev, ...extractedBrief }));
+      setIsBriefComplete(isComplete);
+
+      // B. Construir el historial del chat
+      // Mensaje 1: El usuario (su prompt inicial)
+      // Mensaje 2: La IA (su respuesta inicial analizada)
+      setMessages([
+          { role: 'user', text: initialPrompt },
+          { role: 'ai', text: initialResponse }
+      ]);
+
+      // C. Entrar al modo Arquitecto
+      setAppState('architect');
+  };
 
   // Core AI Logic
   const sendMessage = async () => {
@@ -289,8 +487,9 @@ export default function App() {
 
   const deploy = async () => { setLoading(true); setLoadingText('Publishing to Web...'); try { const res = await axios.post(`${API_URL}/deploy`, { sessionId }); setDeployUrl(res.data.url); setMessages(prev => [...prev, { role: 'ai', text: `Site is live! ${res.data.url}` }]); } catch (e) { alert("Deploy failed"); } setLoading(false); };
 
-  if (appState === 'login') return <LoginScreen onLogin={handleLogin} />;
-  if (appState === 'boot') return <BootScreen onComplete={() => setAppState('architect')} />;
+  // RENDER CONDICIONAL ACTUALIZADO
+  if (appState === 'landing') return <LandingScreen onStart={handleStart} />;
+  if (appState === 'processing') return <ProcessingScreen initialPrompt={initialPrompt} onAnalysisComplete={handleAnalysisComplete} />;
 
   return (
     <div className="flex flex-col md:flex-row h-[100dvh] bg-[#f8f9fc] text-gray-900 font-sans overflow-hidden selection:bg-[#beff50]/50 relative">
@@ -352,9 +551,9 @@ export default function App() {
                        <div className="mx-auto w-full max-w-sm bg-white/80 backdrop-blur-xl p-6 rounded-3xl border border-[#beff50] shadow-[0_20px_60px_-10px_rgba(0,0,0,0.05)] animate-in zoom-in slide-in-from-bottom-6 mb-10">
                           <div className="flex items-center gap-3 mb-5 text-[#60259f]">
                              <div className="p-2 bg-[#60259f]/10 rounded-full"><CheckCircle2 size={18} /></div>
-                             <span className="font-bold tracking-widest uppercase text-xs">Blueprint Ready</span>
+                             <span className="font-bold tracking-widest uppercase text-xs">Brief listo</span>
                           </div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-6">Shall we build it?</h3>
+                          <h3 className="text-xl font-bold text-gray-900 mb-6">¿Tenemos la información correcta?</h3>
                           <div className="space-y-3 mb-8">
                              {Object.entries(liveBrief).map(([key, val]) => val && (
                                 <div key={key} className="flex justify-between text-sm border-b border-gray-100 pb-2 last:border-0">
@@ -364,7 +563,7 @@ export default function App() {
                              ))}
                           </div>
                           <button onClick={startBuild} disabled={loading} className="w-full py-4 bg-[#beff50] hover:bg-[#b0ef40] text-black font-bold text-sm rounded-xl transition-all shadow-lg hover:shadow-xl hover:shadow-[#beff50]/20 hover:scale-[1.02] flex items-center justify-center gap-2">
-                             {loading ? <Loader2 className="animate-spin"/> : <><Zap size={18} fill="currentColor" /> Initialize Construction</>}
+                             {loading ? <Loader2 className="animate-spin"/> : <><Zap size={18} fill="currentColor" /> Crea mi sitio web</>}
                           </button>
                        </div>
                     )}
@@ -380,7 +579,7 @@ export default function App() {
                          value={chatInput}
                          onChange={(e) => setChatInput(e.target.value)}
                          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                         placeholder="Describe your vision..."
+                         placeholder="Describe tu visión..."
                          className="flex-1 bg-transparent border-none text-gray-900 px-6 py-3 text-base focus:ring-0 outline-none placeholder-gray-400 font-medium"
                          autoFocus
                        />
@@ -392,7 +591,7 @@ export default function App() {
                           <ArrowRight size={20} />
                        </button>
                     </div>
-                    <p className="text-center text-[10px] text-gray-400 mt-4 font-medium tracking-wide">Press Enter to chat</p>
+                    <p className="text-center text-[10px] text-gray-400 mt-4 font-medium tracking-wide">Presiona Enter para chatear</p>
                  </div>
               </div>
            </div>
