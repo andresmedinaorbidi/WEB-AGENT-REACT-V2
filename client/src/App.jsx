@@ -15,6 +15,12 @@ const API_URL = window.location.hostname === 'localhost'
 const TeoAvatar = () => <div className="w-8 h-8 min-w-[2rem] rounded-full bg-plinng-purple flex items-center justify-center text-white font-bold text-xs shadow-md">T</div>;
 const UserAvatar = () => <div className="w-8 h-8 min-w-[2rem] rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold text-xs">Me</div>;
 
+// --- EXTRACT URL ---
+const extractUrl = (text) => {
+    const match = text.match(/(https?:\/\/[^\s]+)/);
+    return match ? match[0] : null;
+};
+
 // --- LOGIN SCREEN ---
 const LoginScreen = ({ onLogin }) => {
   const [email, setEmail] = useState('');
@@ -125,38 +131,92 @@ export default function App() {
   // Core AI Logic
   const sendMessage = async () => {
     if (!chatInput.trim()) return;
+    
     const userText = chatInput;
+    // 1. Add User Message to UI immediately
     setMessages(prev => [...prev, { role: 'user', text: userText }]);
     setChatInput('');
     setIsTyping(true);
 
     try {
+      // ====================================================
+      // BUILDER MODE (Code Refinement)
+      // ====================================================
       if (appState === 'builder') {
-         setLoading(true); setLoadingText('Refining Code...');
-         const res = await axios.post(`${API_URL}/edit`, { instruction: userText, sessionId });
-         setSiteUrl(res.data.url); setRawCode(res.data.code);
+         setLoading(true); 
+         setLoadingText('Refining Code...');
+         
+         const res = await axios.post(`${API_URL}/edit`, { 
+             instruction: userText, 
+             sessionId 
+         });
+         
+         setSiteUrl(res.data.url); 
+         setRawCode(res.data.code);
          setMessages(prev => [...prev, { role: 'ai', text: "I've updated the design based on your feedback." }]);
          setLoading(false);
+         
          if (window.innerWidth < 768) setMobileTab('preview');
+      
+      // ====================================================
+      // ARCHITECT MODE (Requirements Gathering)
+      // ====================================================
       } else {
-         const apiHistory = messages.map(m => ({ role: m.role === 'ai' ? 'model' : 'user', parts: [{ text: m.text }] }));
-         const res = await axios.post(`${API_URL}/chat`, { history: apiHistory, message: userText, currentBrief: liveBrief });
+         // A. URL ANALYSIS LOGIC
+         let scrapedContext = "";
+         const foundUrl = extractUrl(userText);
+         
+         if (foundUrl) {
+             // Show a temporary system message to let user know we are working
+             setMessages(prev => [...prev, { role: 'ai', text: `👀 I see a link (${foundUrl}). analyzing its structure...` }]);
+             
+             try {
+                 const scrapeRes = await axios.post(`${API_URL}/analyze`, { url: foundUrl });
+                 
+                 // We format this as a "System Note" so the AI knows it's data, not user chatter
+                 scrapedContext = `\n\n[SYSTEM INJECTION: The user provided a reference link. Here is the analyzed content from ${foundUrl}]:\n${scrapeRes.data.rawData}\n\n[INSTRUCTION: Use this data to fill the 'reference' and 'context' fields in the brief.]`;
+                 
+             } catch (e) {
+                 console.error("Scraping failed", e);
+                 // We don't block the chat if scraping fails, just continue
+             }
+         }
+
+         // B. PREPARE HISTORY FOR API
+         // Map our UI messages to the format Gemini expects (user/model)
+         const apiHistory = messages.map(m => ({ 
+             role: m.role === 'ai' ? 'model' : 'user', 
+             parts: [{ text: m.text }] 
+         }));
+
+         // C. SEND TO ARCHITECT
+         // We append the scrapedContext (if any) to the user's message invisibly
+         const res = await axios.post(`${API_URL}/chat`, { 
+             history: apiHistory, 
+             message: userText + scrapedContext, 
+             currentBrief: liveBrief 
+         });
+         
          const { reply, brief, is_complete, action } = res.data; 
          
+         // D. UPDATE LIVE BRIEF
          if (brief) {
              setLiveBrief(prev => {
                  const newBrief = { ...prev };
+                 // We merge the new fields safely
                  if (brief.name) newBrief.name = brief.name;
                  if (brief.industry) newBrief.industry = brief.industry;
                  if (brief.audience) newBrief.audience = brief.audience;
                  if (brief.vibe) newBrief.vibe = brief.vibe;
                  if (brief.sections) newBrief.sections = brief.sections;
-                 if (brief.context) newBrief.context = brief.context;
+                 if (brief.context) newBrief.context = brief.context;     // Captured from extra chatter
+                 if (brief.reference) newBrief.reference = brief.reference; // Captured from URL
                  return newBrief;
              });
          }
          setIsBriefComplete(is_complete);
 
+         // E. HANDLE ACTIONS
          if (action === "BUILD") {
              setMessages(prev => [...prev, { role: 'ai', text: "On it. Initializing Plinng Builder..." }]);
              startBuild(); 
@@ -164,7 +224,11 @@ export default function App() {
              setMessages(prev => [...prev, { role: 'ai', text: reply }]);
          }
       }
-    } catch (e) { setMessages(prev => [...prev, { role: 'ai', text: "Connection error. Teo is offline." }]); }
+    } catch (e) { 
+        console.error(e);
+        setMessages(prev => [...prev, { role: 'ai', text: "Connection error. Teo is offline." }]); 
+    }
+    
     setIsTyping(false);
   };
 
@@ -181,6 +245,9 @@ export default function App() {
     let idx = 0; 
     const interval = setInterval(() => { setLoadingText(texts[idx++ % texts.length]); }, 2000);
     
+    // If we have a reference URL, we explicitly label it
+    const refString = liveBrief.reference ? `Reference Site: ${liveBrief.reference}` : '';
+
     // Construct Prompt
     const prompt = `Business: ${liveBrief.name}. Industry: ${liveBrief.industry}. Audience: ${liveBrief.audience}. Sections: ${liveBrief.sections}. Vibe: ${liveBrief.vibe}. Context: ${liveBrief.context || 'None'}.`;
 

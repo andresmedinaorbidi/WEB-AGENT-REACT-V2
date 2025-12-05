@@ -94,26 +94,44 @@ You are a Senior React Developer & UI/UX Designer.
 
 const ARCHITECT_PROMPT = `
 You are a Data Extraction Engine.
-Your ONLY job is to extract website requirements from the User's Message into a JSON object.
+Your ONLY job is to extract website requirements into a JSON object.
 
 ### FIELDS TO EXTRACT:
 1. **name** (Business Name)
 2. **industry** (Niche/Category)
 3. **audience** (Target Customers)
-4. **vibe** (Design Aesthetic)
-5. **sections** (Pages requested, e.g., Home, Contact)
-6. **context** (Any specific details, history, slogan, or extra constraints)
+4. **vibe** (Design Aesthetic - encourage adjectives + colors)
+5. **sections** (Pages requested - e.g., Home, About, Contact)
+6. **context** (Specific details, history, constraints, or unique value props)
+7. **reference** (URL provided)
 
-### INPUT CONTEXT:
-- **Current Brief:** The data we already have.
-- **User Message:** The new text to parse.
+### INPUT DATA SOURCE:
+1. **Current Brief:** Data we already have.
+2. **User Message:** The user's latest chat.
+3. **System Injection:** (Optional) Analyzed text from a reference URL.
 
-### RULES:
-1. **Start with the Current Brief.** Copy all existing non-null values.
-2. **Update** fields based *only* on the User Message.
-3. If the user mentions multiple things (e.g., "Bakery for kids"), fill multiple fields (industry="Bakery", audience="Kids").
-4. If the user shares a story or specific requirement (e.g., "We started in 1990" or "Use a cat mascot"), put it in **context**.
-5. **Output JSON ONLY.** No text, no chatter.
+### 🧠 PARSING LOGIC (THE PRIORITY CHAIN):
+
+**PRIORITY 1: USER SPEECH (Highest - The Boss)**
+- If the user explicitly says "Change name to X" or "Make it pink", this OVERRIDES everything.
+- If the user mentions multiple things (e.g., "A Bakery for kids"), fill multiple fields.
+- If the user shares a story (e.g., "Founded in 1990"), put it in **context**.
+
+**PRIORITY 2: SYSTEM INJECTION (Medium - The Researcher)**
+- *Trigger:* Only if the message contains "\`--- START OF SYSTEM INJECTION ---\`".
+- **Action:** You MUST use this data to fill **AS MANY FIELDS AS POSSIBLE** immediately.
+  - **Name:** Extract from 'SOURCE TITLE' or 'H1'.
+  - **Industry:** Infer from the content description.
+  - **Sections:** Look for navigation keywords (Home, About, Contact, Pricing, Menu) in the content snippet.
+  - **Vibe:** Infer from the writing style (e.g., Professional vs. Playful, Luxury vs. Budget).
+  - **Context:** Summarize the unique value prop (e.g. "Uses organic flour"). **DO NOT** dump the raw text block here.
+
+**PRIORITY 3: PRESERVATION (Lowest - The Memory)**
+- If the User says nothing new about a field, and there is no new Reference, KEEP the value from the **Current Brief**.
+
+### 🚫 OUTPUT RULES:
+1. **JSON ONLY.** No chatter.
+2. Do NOT dump raw HTML or huge text blocks into 'context'. Summarize facts only.
 
 ### JSON FORMAT:
 {
@@ -123,7 +141,8 @@ Your ONLY job is to extract website requirements from the User's Message into a 
     "audience": "...",
     "vibe": "...",
     "sections": "...",
-    "context": "..."
+    "context": "...", 
+    "reference": "..." 
   }
 }
 `;
@@ -149,7 +168,7 @@ async function chatWithArchitect(history, userMessage, currentBrief = {}) {
         const responseText = result.response.text();
         const aiOutput = JSON.parse(responseText);
 
-        // 1. SAFE MERGE (Ensure we have all 5 keys)
+        // 1. SAFE MERGE (Ensure we have all 7 keys)
         // We force the structure so the code below never crashes
         const safeBrief = {
             name: aiOutput.brief?.name || currentBrief.name || null,
@@ -158,6 +177,7 @@ async function chatWithArchitect(history, userMessage, currentBrief = {}) {
             vibe: aiOutput.brief?.vibe || currentBrief.vibe || null,
             sections: aiOutput.brief?.sections || currentBrief.sections || null,
             context: aiOutput.brief?.context || currentBrief.context || null,
+            reference: aiOutput.brief?.reference || currentBrief.reference || null,
         };
 
         console.log("🔸 [Architect] Extracted Data:", JSON.stringify(safeBrief));
@@ -262,7 +282,13 @@ async function generateWebsite(userPrompt, style = "Modern") {
     - Do not just make generic "Home/About/Services". If they asked for "Portfolio" or "Pricing", build those specific views.
     - Use \`const [view, setView] = useState('Home')\` to handle navigation.
 
-    **2. ✍️ COPYWRITING & TONE (Audience-Driven):**
+    **2. 🔗 REFERENCE WEBSITE ANALYSIS (Important):**
+    - Look for "REFERENCE SITE DATA" in the Brief above.
+    - If present, analyze the text content, headings, and description extracted from that URL.
+    - **Mimic the writing style** found in that data.
+    - **Mimic the structure** (e.g., if they have a 'Features' section in the extracted text, include it).
+
+    **3. ✍️ COPYWRITING & TONE (Audience-Driven):**
     - Analyze the **"Audience"** and **"Industry"** fields.
     - **Rule:** Adapt the writing style (Microcopy, Headlines, CTAs) to match this specific audience.
     - **CRITICAL:** Check the **"Context"** field. If the user provided specific details (e.g., "Founded in 1990", "We sell organic cookies"), you MUST weave these facts into the generated text.
@@ -270,7 +296,7 @@ async function generateWebsite(userPrompt, style = "Modern") {
     - *Scenario B:* If Audience is "Medical Professionals", use precise, formal, trustworthy tone.
     - *Scenario C:* If Audience is "Children", use simple words and enthusiastic tone.
     
-    **3. 🎨 PROCEDURAL STYLING (Vibe-Driven):**
+    **4. 🎨 PROCEDURAL STYLING (Vibe-Driven):**
     - The user wants a **"${vibe}"** aesthetic.
     - Interpret this vibe into a custom Tailwind Design System (Colors, Fonts, Spacing, Border Radius).
     - **Images:** Generate Pollinations AI images that strictly match the Industry + Vibe.

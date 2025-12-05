@@ -5,6 +5,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const AdmZip = require('adm-zip');
 const axios = require('axios');
+const cheerio = require('cheerio');
 const { generateWebsite, editWebsite, chatWithArchitect } = require('./agent');
 const { exec } = require('child_process');
 require('dotenv').config();
@@ -105,6 +106,7 @@ function saveSite(sessionId, rawCode) {
 
 // --- API ROUTES ---
 
+// --- WEBSITE CREATION: Handles the website generation, calls the main Designer AGENT-PROMPT uses Gemini 3.0 Pro
 app.post('/api/create', async (req, res) => {
     try {
         const { prompt, sessionId, style } = req.body;
@@ -121,7 +123,7 @@ app.post('/api/create', async (req, res) => {
     }
 });
 
-// FIX: This route was missing the file reading part in your previous error
+// --- WEBSITE EDIT: Handles the website edition, uses a simple EDIT AGENT, with a cheap Gemini 2.0 model
 app.post('/api/edit', async (req, res) => {
     try {
         const { instruction, sessionId } = req.body;
@@ -149,6 +151,7 @@ app.post('/api/edit', async (req, res) => {
     }
 });
 
+// --- WEBSITE RESTORE: Handles the local website restoration, allows user to go back to previous version
 app.post('/api/restore', async (req, res) => {
     try {
         const { sessionId, code } = req.body;
@@ -162,6 +165,7 @@ app.post('/api/restore', async (req, res) => {
     }
 });
 
+// --- WEBSITE DEPLOY: Uses Surge API to post websites to the internet
 app.post('/api/deploy', async (req, res) => {
     const { sessionId } = req.body;
     const folderPath = path.join(sitesDir, sessionId);
@@ -192,6 +196,7 @@ app.post('/api/deploy', async (req, res) => {
     });
 });
 
+// --- WEBSITE DOWNLOAD: Developer friendly, allows the user to download the website generated code in zip file
 app.get('/api/download/:sessionId', (req, res) => {
     const { sessionId } = req.params;
     const folderPath = path.join(sitesDir, sessionId);
@@ -220,7 +225,7 @@ app.get('/api/download/:sessionId', (req, res) => {
     res.send(data);
 });
 
-// API: CHAT (Updated with Debug Logs)
+// --- AGENT CHAT: Starter chat, ets information from the user, uses cheap Gemini 2.0 
 app.post('/api/chat', async (req, res) => {
     console.log("--------------------------------");
     console.log("📩 Chat Request Received");
@@ -251,6 +256,50 @@ app.post('/api/chat', async (req, res) => {
             details: error.message,
             stack: error.stack
         });
+    }
+});
+
+// NEW ENDPOINT: Analyze URL
+app.post('/api/analyze', async (req, res) => {
+    try {
+        const { url } = req.body;
+        console.log(`🔍 Analyzing URL: ${url}`);
+
+        // 1. Fetch HTML
+        const response = await axios.get(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
+        });
+        const html = response.data;
+
+        // 2. Parse Text with Cheerio
+        const $ = cheerio.load(html);
+        
+        // Remove scripts, styles, and SVGs to save tokens
+        $('script').remove();
+        $('style').remove();
+        $('svg').remove();
+        $('noscript').remove();
+
+        // Extract key elements
+        const title = $('title').text().trim();
+        const description = $('meta[name="description"]').attr('content') || '';
+        const h1 = $('h1').map((i, el) => $(el).text().trim()).get().join('; ');
+        
+        // Get generic body text (first 1000 chars to avoid overload)
+        const bodyText = $('body').text().replace(/\s+/g, ' ').trim().substring(0, 1500);
+
+        const rawData = `
+        Title: ${title}
+        Description: ${description}
+        Main Headings: ${h1}
+        Content Snippet: ${bodyText}
+        `;
+
+        res.json({ rawData });
+
+    } catch (error) {
+        console.error("Scrape Error:", error.message);
+        res.json({ rawData: "Could not fetch website. The site might block bots." });
     }
 });
 
