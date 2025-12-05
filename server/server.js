@@ -6,7 +6,7 @@ const bodyParser = require('body-parser');
 const AdmZip = require('adm-zip');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const { generateWebsite, editWebsite, chatWithArchitect } = require('./agent');
+const { generateWebsite, editWebsite, chatWithArchitect, generateImage } = require('./agent');
 const { exec } = require('child_process');
 require('dotenv').config();
 
@@ -300,6 +300,36 @@ app.post('/api/analyze', async (req, res) => {
     } catch (error) {
         console.error("Scrape Error:", error.message);
         res.json({ rawData: "Could not fetch website. The site might block bots." });
+    }
+});
+
+// NEW ENDPOINT: Image Proxy
+// Usage in HTML: <img src="/api/image?prompt=A+cyberpunk+city" />
+app.get('/api/image', async (req, res) => {
+    const prompt = req.query.prompt;
+    if (!prompt) return res.status(400).send("Prompt required");
+
+    // Simple In-Memory Cache to save money/quota
+    // (In production, use Redis or save files to disk)
+    const cacheKey = prompt.toLowerCase().trim();
+    if (global.imageCache && global.imageCache[cacheKey]) {
+        res.set('Content-Type', 'image/png');
+        return res.send(global.imageCache[cacheKey]);
+    }
+
+    try {
+        const imageBuffer = await generateImage(prompt);
+        
+        // Save to cache
+        if (!global.imageCache) global.imageCache = {};
+        global.imageCache[cacheKey] = imageBuffer;
+
+        res.set('Content-Type', 'image/png');
+        res.send(imageBuffer);
+    } catch (error) {
+        console.error("Image Generation Failed:", error.message);
+        // Fallback to a placeholder if Gemini fails or refuses (Safety filter)
+        res.redirect(`https://placehold.co/600x400/000/FFF?text=Image+Error`);
     }
 });
 

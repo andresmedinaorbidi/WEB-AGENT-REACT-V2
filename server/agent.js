@@ -1,4 +1,5 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const axios = require('axios'); // <--- ADD THIS IMPORT (Make sure to npm install axios if needed)
 require('dotenv').config();
 
 // Safety check
@@ -299,7 +300,13 @@ async function generateWebsite(userPrompt, style = "Modern") {
     **4. 🎨 PROCEDURAL STYLING (Vibe-Driven):**
     - The user wants a **"${vibe}"** aesthetic.
     - Interpret this vibe into a custom Tailwind Design System (Colors, Fonts, Spacing, Border Radius).
-    - **Images:** Generate Pollinations AI images that strictly match the Industry + Vibe.
+
+    **5. Images (CHANGED RULE):** 
+       - Do NOT use Pollinations AI.
+       - You MUST use the local API endpoint for images.
+       - **URL Format:** \`/api/image?prompt={URI_ENCODED_DESCRIPTION}\`
+       - *Example:* \`<img src="/api/image?prompt=A%20futuristic%20office%20with%20plants" alt="Office" />\`
+       - Always URI-encode the prompt parameter.
 
     **REQUIREMENTS:**
     - Export a single component \`App\`.
@@ -360,4 +367,28 @@ async function editWebsite(currentCode, instruction) {
     }
 }
 
-module.exports = { generateWebsite, editWebsite, chatWithArchitect };
+// --- FIX: USE REST API FOR IMAGEN ---
+async function generateImage(prompt) {
+    try {
+        const API_KEY = process.env.GEMINI_API_KEY;
+        const MODEL_NAME = "imagen-4.0-generate-preview-06-06";
+        
+        console.log(`🎨 Generating with ${MODEL_NAME}: "${prompt}"`);
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:predict?key=${API_KEY}`;
+
+        const response = await axios.post(url, {
+            instances: [{ prompt: prompt }],
+            parameters: { sampleCount: 1, aspectRatio: "16:9" }
+        });
+
+        const base64Data = response.data.predictions[0].bytesBase64Encoded;
+        return Buffer.from(base64Data, "base64");
+
+    } catch (error) {
+        console.error("Imagen 4.0 Error:", error.response?.data || error.message);
+        throw error;
+    }
+}
+
+module.exports = { generateWebsite, editWebsite, chatWithArchitect, generateImage };

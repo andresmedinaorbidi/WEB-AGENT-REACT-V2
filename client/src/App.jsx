@@ -52,7 +52,7 @@ const LandingScreen = ({ onStart }) => {
         {/* Logo / Brand */}
         <div className="mb-10 text-center">
              <div className="inline-flex items-center justify-center w-16 h-16 bg-[#beff50] rounded-2xl shadow-[0_10px_30px_-10px_rgba(190,255,80,0.5)] mb-6 transform -rotate-3"><Zap size={32} className="text-black fill-current" /></div>
-             <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-4 text-gray-900">plinng<span className="text-[#60259f]">.flow</span></h1>
+             <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-4 text-gray-900">plinng<span className="text-[#60259f]">.wflow</span></h1>
              <p className="text-xl text-gray-500 font-medium max-w-lg mx-auto leading-relaxed">
                 Describe tu sitio web ideal y deja que 
                 
@@ -518,7 +518,7 @@ export default function App() {
                     {/* Header (Scrolls with messages now to avoid fixed overlap) */}
                     <div className="flex flex-col items-center justify-center gap-2 mb-10 opacity-80">
                         <div className="w-10 h-10 bg-[#beff50] rounded-xl flex items-center justify-center shadow-lg shadow-[#beff50]/30 transform -rotate-3"><Zap size={20} className="text-black fill-current"/></div>
-                        <span className="font-bold tracking-tight text-gray-400 text-sm">plinng.flow</span>
+                        <span className="font-bold tracking-tight text-gray-400 text-sm">plinng.wflow</span>
                     </div>
 
                     {messages.map((msg, i) => (
