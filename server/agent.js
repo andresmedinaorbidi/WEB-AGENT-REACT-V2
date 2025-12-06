@@ -130,6 +130,11 @@ Your ONLY job is to extract website requirements into a JSON object.
 **PRIORITY 3: PRESERVATION (Lowest - The Memory)**
 - If the User says nothing new about a field, and there is no new Reference, KEEP the value from the **Current Brief**.
 
+### 🚫 STRICT VALIDATION RULES (CRITICAL):
+1. **NO GUESSING:** If the user hasn't specified a value (and it's not in the reference), set it to \`null\`.
+2. **NO PLACEHOLDERS:** Do NOT use strings like "TBD", "Unknown", "General", "My Business", "Pending". Use \`null\`.
+3. **NAME:** If the user hasn't given a name, return \`null\`. Do not invent "New Project".
+
 ### 🚫 OUTPUT RULES:
 1. **JSON ONLY.** No chatter.
 2. Do NOT dump raw HTML or huge text blocks into 'context'. Summarize facts only.
@@ -154,8 +159,6 @@ async function chatWithArchitect(history, userMessage, currentBrief = {}) {
     const chat = fastModel.startChat({
         history: [
             { role: "user", parts: [{ text: ARCHITECT_PROMPT }] }
-            // Note: We don't need full chat history for the extraction task, 
-            // just the current state and the new message. This reduces confusion.
         ]
     });
 
@@ -167,29 +170,39 @@ async function chatWithArchitect(history, userMessage, currentBrief = {}) {
     try {
         const result = await chat.sendMessage(messageWithContext);
         const responseText = result.response.text();
-        const aiOutput = JSON.parse(responseText);
+        
+        // Intentar parsear JSON (Gemini a veces pone markdown ```json ... ```)
+        const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+        const aiOutput = JSON.parse(cleanJson);
 
-        // 1. SAFE MERGE (Ensure we have all 7 keys)
-        // We force the structure so the code below never crashes
+        // --- HELPER: SANITIZADOR DE DATOS ---
+        // Convierte "Unknown", "N/A", "TBD" en null real
+        const clean = (val) => {
+            if (!val) return null;
+            if (typeof val !== 'string') return val;
+            const v = val.toLowerCase().trim();
+            if (['null', 'unknown', 'n/a', 'tbd', 'pending', 'undefined', 'not specified'].includes(v)) return null;
+            if (v.length < 2) return null; // Evita respuestas como "-" o "."
+            return val; // Devuelve el valor original (con mayúsculas correctas)
+        };
+
+        // 1. SAFE MERGE CON LIMPIEZA
         const safeBrief = {
-            name: aiOutput.brief?.name || currentBrief.name || null,
-            industry: aiOutput.brief?.industry || currentBrief.industry || null,
-            audience: aiOutput.brief?.audience || currentBrief.audience || null,
-            vibe: aiOutput.brief?.vibe || currentBrief.vibe || null,
-            sections: aiOutput.brief?.sections || currentBrief.sections || null,
+            name: clean(aiOutput.brief?.name) || currentBrief.name || null,
+            industry: clean(aiOutput.brief?.industry) || currentBrief.industry || null,
+            audience: clean(aiOutput.brief?.audience) || currentBrief.audience || null,
+            vibe: clean(aiOutput.brief?.vibe) || currentBrief.vibe || null,
+            sections: clean(aiOutput.brief?.sections) || currentBrief.sections || null,
             context: aiOutput.brief?.context || currentBrief.context || null,
             reference: aiOutput.brief?.reference || currentBrief.reference || null,
         };
 
-        console.log("🔸 [Architect] Extracted Data:", JSON.stringify(safeBrief));
+        console.log("🔸 [Architect] Cleaned Data:", JSON.stringify(safeBrief));
 
-        // 2. SERVER-SIDE LOGIC (The "Manager")
-        // The code decides the next move, not the AI.
-        
+        // 2. LOGICA DEL MANAGER (Determina qué preguntar)
         let nextReply = "";
         let isComplete = false;
 
-        // CHECK SEQUENCE
         if (!safeBrief.industry) {
             nextReply = "¡Hola! Soy Teo. Para empezar, ¿a qué industria pertenece tu proyecto (ej: Restaurante, Portafolio)?";
         } else if (!safeBrief.name) {
@@ -201,7 +214,7 @@ async function chatWithArchitect(history, userMessage, currentBrief = {}) {
         } else if (!safeBrief.sections) {
             nextReply = "¿Qué secciones necesitas? (ej: Inicio, Servicios, Contacto)";
         } else {
-            // ALL FILLED
+            // SOLO SI TODO LO ANTERIOR TIENE DATOS REALES
             isComplete = true;
             nextReply = "¡Perfecto! He creado el plan. Revísalo aquí abajo para comenzar la construcción.";
         }
@@ -210,7 +223,7 @@ async function chatWithArchitect(history, userMessage, currentBrief = {}) {
             reply: nextReply,
             brief: safeBrief,
             is_complete: isComplete,
-            action: isComplete ? "CHAT" : "CHAT" // UI handles the build button
+            action: "CHAT"
         };
 
     } catch (error) {
@@ -307,6 +320,12 @@ async function generateWebsite(userPrompt, style = "Modern") {
        - **URL Format:** \`/api/image?prompt={URI_ENCODED_DESCRIPTION}\`
        - *Example:* \`<img src="/api/image?prompt=A%20futuristic%20office%20with%20plants" alt="Office" />\`
        - Always URI-encode the prompt parameter.
+
+    - **CRITICAL COMPONENT RULE:** 
+      - A component named \`<SmartImage />\` is ALREADY defined in the environment.
+      - **DO NOT define it.** Just use it.
+      - **ALWAYS** use \`<SmartImage src="..." alt="..." className="..." />\` instead of \`<img>\`.
+      - It accepts all standard img props + Tailwind classes.
 
     **REQUIREMENTS:**
     - Export a single component \`App\`.

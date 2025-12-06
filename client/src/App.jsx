@@ -632,7 +632,7 @@ export default function App() {
             <div className="p-6 pb-4 border-b border-gray-100 flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-[#beff50] rounded-lg flex items-center justify-center shadow-lg shadow-[#beff50]/20"><Zap size={18} className="text-black fill-current" /></div>
-                <div className="flex flex-col"><h1 className="text-xl font-bold tracking-tight leading-none text-gray-900">wflow</h1><span className="text-[10px] text-gray-400 font-mono uppercase tracking-wider">Builder</span></div>
+                <div className="flex flex-col"><h1 className="text-xl font-bold tracking-tight leading-none text-gray-900">plinng.wflow</h1><span className="text-[10px] text-gray-400 font-mono uppercase tracking-wider">Builder</span></div>
               </div>
               <button onClick={() => setShowAccountMenu(!showAccountMenu)} className="md:hidden p-2 text-gray-400"><Settings size={18}/></button>
             </div>

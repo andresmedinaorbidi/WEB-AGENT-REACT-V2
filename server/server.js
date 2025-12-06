@@ -67,6 +67,15 @@ const HTML_WRAPPER = (code) => `
         html { scroll-behavior: smooth; }
         ::-webkit-scrollbar { width: 0px; background: transparent; }
         #root:empty::before { content: 'Building...'; display: flex; height: 100vh; justify-content: center; align-items: center; color: #888; }
+        @keyframes image-shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .animate-image-shimmer {
+            background: linear-gradient(110deg, #e5e7eb 8%, #f3f4f6 18%, #e5e7eb 33%);
+            background-size: 200% 100%;
+            animation: image-shimmer 1.5s linear infinite;
+        }
     </style>
     <script>
         document.addEventListener('error', function(e) {
@@ -84,6 +93,27 @@ const HTML_WRAPPER = (code) => `
     <script type="text/babel">
         try {
             const { useState, useEffect, useRef } = React;
+
+            // --- 💉 INJECTED SMART COMPONENT ---
+            // We define it here globally so the AI doesn't have to write it.
+            const SmartImage = ({ src, alt, className, ...props }) => {
+                const [isLoading, setIsLoading] = useState(true);
+                return (
+                    <div className={\`relative overflow-hidden \${className || ''}\`}>
+                        {isLoading && (
+                            <div className="absolute inset-0 z-10 animate-image-shimmer h-full w-full" />
+                        )}
+                        <img 
+                            src={src} 
+                            alt={alt}
+                            className={\`transition-opacity duration-500 \${isLoading ? 'opacity-0' : 'opacity-100'} \${className || ''}\`}
+                            onLoad={() => setIsLoading(false)}
+                            {...props}
+                        />
+                    </div>
+                );
+            };
+            
             ${code}
             if (typeof App === 'undefined') throw new Error("Component 'App' not found");
             const root = ReactDOM.createRoot(document.getElementById('root'));
