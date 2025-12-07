@@ -61,7 +61,19 @@ async function chatWithArchitect(history, userMessage, currentBrief = {}) {
         let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
         const aiOutput = JSON.parse(cleanText);
 
-        const clean = (val) => (val && !['null','unknown','tbd'].includes(val.toLowerCase()) ? val : null);
+        // 🔧 FIX: Robust Cleaner
+        // This handles Strings, Arrays, and Nulls without crashing
+        const clean = (val) => {
+            if (!val) return null;
+            if (Array.isArray(val)) return val.join(', '); // Convert ["A","B"] to "A, B"
+            if (typeof val !== 'string') return String(val); // Convert numbers to string
+            
+            // Check for placeholder words
+            const lower = val.toLowerCase().trim();
+            if (['null', 'unknown', 'tbd', 'n/a', 'undefined'].includes(lower)) return null;
+            
+            return val;
+        };
 
         const safeBrief = {
             name: clean(aiOutput.brief?.name) || currentBrief.name,
@@ -69,8 +81,8 @@ async function chatWithArchitect(history, userMessage, currentBrief = {}) {
             audience: clean(aiOutput.brief?.audience) || currentBrief.audience,
             vibe: clean(aiOutput.brief?.vibe) || currentBrief.vibe,
             sections: clean(aiOutput.brief?.sections) || currentBrief.sections,
-            context: aiOutput.brief?.context || currentBrief.context,
-            reference: aiOutput.brief?.reference || currentBrief.reference,
+            context: clean(aiOutput.brief?.context) || currentBrief.context,
+            reference: clean(aiOutput.brief?.reference) || currentBrief.reference,
         };
 
         let nextReply = "";
@@ -89,7 +101,8 @@ async function chatWithArchitect(history, userMessage, currentBrief = {}) {
 
     } catch (error) {
         console.error("Architect Error:", error);
-        return { reply: "I missed that. Could you repeat?", brief: currentBrief, is_complete: false };
+        // Fallback to prevent app freeze
+        return { reply: "I'm thinking... could you say that again?", brief: currentBrief, is_complete: false };
     }
 }
 
