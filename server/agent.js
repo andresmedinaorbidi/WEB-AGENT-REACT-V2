@@ -1,152 +1,44 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const axios = require('axios'); // <--- ADD THIS IMPORT (Make sure to npm install axios if needed)
+const axios = require('axios');
 require('dotenv').config();
 
-// Safety check
-if (!process.env.GEMINI_API_KEY) {
-    console.error("❌ ERROR: GEMINI_API_KEY is missing from .env file!");
-}
+if (!process.env.GEMINI_API_KEY) console.error("❌ ERROR: GEMINI_API_KEY is missing!");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-// --- ARCHITECTURE STRATEGY ---
-// 1. CREATIVE MODEL (The Architect): Uses the most powerful model for initial design.
 const creativeModel = genAI.getGenerativeModel({ model: "gemini-3-pro-preview" }); 
-// Note: "gemini-3-pro-preview" is experimental. If it fails, use "gemini-1.5-pro".
+const fastModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-// 2. FAST MODEL (The Intern): Uses the cheapest model for edits/tweaks.
-const fastModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite", generationConfig: { responseMimeType: "application/json"} });
-
-// --- MOCK DATA FOR TESTING (Type "TEST" in prompt) ---
-const MOCK_SITE = `
-export default function App() {
-  const [count, setCount] = React.useState(0);
-  return (
-    <div className="min-h-screen bg-neutral-950 text-white flex flex-col items-center justify-center p-8 font-sans">
-      <div className="w-full max-w-2xl text-center space-y-8">
-        <div className="inline-block p-4 rounded-full bg-[#beff50]/10 border border-[#beff50]/20 mb-4">
-           <svg className="w-12 h-12 text-[#beff50]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-        </div>
-        <h1 className="text-5xl font-bold tracking-tighter">
-          <span className="text-[#beff50]">MOCK MODE</span> ACTIVE
-        </h1>
-        <p className="text-neutral-400 text-lg">
-          This is a static response. No AI credits were used.
-        </p>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-6 rounded-2xl bg-neutral-900 border border-white/10">
-            <h3 className="text-xl font-bold mb-2">Interactive Test</h3>
-            <button 
-              onClick={() => setCount(c => c + 1)}
-              className="px-6 py-3 bg-white text-black font-bold rounded-lg hover:scale-105 transition-transform"
-            >
-              Count: {count}
-            </button>
-          </div>
-          <div className="p-6 rounded-2xl bg-neutral-900 border border-white/10 flex items-center justify-center">
-             <div className="text-neutral-500">Image Placeholder</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-`;
-
-// 1. DEFINE VIBES (Hidden instructions)
-const STYLES = {
-    "Minimal": "Use a monochromatic palette, lots of whitespace, Helvetica/Inter fonts, subtle borders, no shadows.",
-    "Neon": "Use a Cyberpunk aesthetic, black background, neon green/pink accents, glitch effects, tech-mono fonts.",
-    "Corporate": "Use a trustworthy blue/gray palette, structured grids, clean cards, professional serif/sans-serif pairing.",
-    "Brutalist": "Use raw outlines, high contrast, neo-brutalist shadows, bold typography, varying border thicknesses.",
-    "Pastel": "Use a soft, airy palette (cream, mint, peach), rounded corners, playful layout, bubble-like elements."
-};
-
-const SYSTEM_PROMPT = `
-You are a Senior React Developer & UI/UX Designer.
-
-### DESIGN PERSONALITY:
-- **Aesthetic:** High-End Editorial, "Awwwards" style, Bento Grids.
-- **Visuals:** Visual-heavy. Use large background images and image grids.
-- **Typography:** Bold, clean sans-serif fonts via Tailwind.
-
-### CRITICAL TECHNICAL RULES:
-1. **Images (CRITICAL):** 
-   - Use **Pollinations AI** for real-time generated images.
-   - **URL Format:** \`https://image.pollinations.ai/prompt/{DESCRIPTION}?width={width}&height={height}&nologo=true\`
-   - Always URI-encode the description.
-
-2. **Navigation:** Use React State (\`const [view, setView] = useState('home')\`), NOT <a> tags.
-3. **Styling:** Use **Tailwind CSS** for everything.
-4. **Icons:** Use **Raw SVGs** with Tailwind classes.
-5. **Structure:** Export a single default component named \`App\`.
-
-### OUTPUT FORMAT:
-- Return raw JSX wrapped in a markdown block (\`\`\`jsx ... \`\`\`).
-- Do NOT output JSON.
-`;
-
-
-// New architect prompt that talks to user and creates a brief
-
-// ==========================================
-//  PART 1: THE ARCHITECT (Server-Driven Logic)
-// ==========================================
+// ============================================================
+//  PART 1: THE ARCHITECT (Negotiator)
+// ============================================================
 
 const ARCHITECT_PROMPT = `
-You are a Data Extraction Engine.
-Your ONLY job is to extract website requirements into a JSON object.
+You are a Senior Product Manager defining a website brief.
+Your goal is **SYNTHESIS**: Create a cohesive plan by negotiating between User Intent and Research Data.
 
-### FIELDS TO EXTRACT:
-1. **name** (Business Name)
-2. **industry** (Niche/Category)
-3. **audience** (Target Customers)
-4. **vibe** (Design Aesthetic - encourage adjectives + colors)
-5. **sections** (Pages requested - e.g., Home, About, Contact)
-6. **context** (Specific details, history, constraints, or unique value props)
-7. **reference** (URL provided)
+### INPUTS:
+1. **User Message:** Explicit instructions.
+2. **Current Brief:** Known facts.
+3. **Research Data:** (Optional) Scraped insights [RESEARCH_SUMMARY].
 
-### INPUT DATA SOURCE:
-1. **Current Brief:** Data we already have.
-2. **User Message:** The user's latest chat.
-3. **System Injection:** (Optional) Analyzed text from a reference URL.
+### 🧠 NEGOTIATION LOGIC:
+1. **CONFLICT RESOLUTION:**
+   - If User says "Blue" but Research says "Red" -> **USER WINS**.
+   - If User is vague ("Make a site") but Research is specific -> **RESEARCH WINS**.
 
-### 🧠 PARSING LOGIC (THE PRIORITY CHAIN):
+2. **FIELD FILLING:**
+   - **Context:** COMBINE User's story with "Content Snippets" from Research.
+   - **Sections:** If undefined, infer from "Detected Offerings" (e.g., if offerings are "Burgers", sections = "Hero, Menu, Location").
+   - **Vibe:** If undefined, use "Implied Vibe" from Research.
 
-**PRIORITY 1: USER SPEECH (Highest - The Boss)**
-- If the user explicitly says "Change name to X" or "Make it pink", this OVERRIDES everything.
-- If the user mentions multiple things (e.g., "A Bakery for kids"), fill multiple fields.
-- If the user shares a story (e.g., "Founded in 1990"), put it in **context**.
-
-**PRIORITY 2: SYSTEM INJECTION (Medium - The Researcher)**
-- *Trigger:* Only if the message contains "\`--- START OF SYSTEM INJECTION ---\`".
-- **Action:** You MUST use this data to fill **AS MANY FIELDS AS POSSIBLE** immediately.
-  - **Name:** Extract from 'SOURCE TITLE' or 'H1'.
-  - **Industry:** Infer from the content description.
-  - **Sections:** Look for navigation keywords (Home, About, Contact, Pricing, Menu) in the content snippet.
-  - **Vibe:** Infer from the writing style (e.g., Professional vs. Playful, Luxury vs. Budget).
-  - **Context:** Summarize the unique value prop (e.g. "Uses organic flour"). **DO NOT** dump the raw text block here.
-
-**PRIORITY 3: PRESERVATION (Lowest - The Memory)**
-- If the User says nothing new about a field, and there is no new Reference, KEEP the value from the **Current Brief**.
-
-### 🚫 STRICT VALIDATION RULES (CRITICAL):
-1. **NO GUESSING:** If the user hasn't specified a value (and it's not in the reference), set it to \`null\`.
-2. **NO PLACEHOLDERS:** Do NOT use strings like "TBD", "Unknown", "General", "My Business", "Pending". Use \`null\`.
-3. **NAME:** If the user hasn't given a name, return \`null\`. Do not invent "New Project".
-
-### 🚫 OUTPUT RULES:
-1. **JSON ONLY.** No chatter.
-2. Do NOT dump raw HTML or huge text blocks into 'context'. Summarize facts only.
-
-### JSON FORMAT:
+### OUTPUT JSON:
 {
   "brief": {
-    "name": "...",
-    "industry": "...",
-    "audience": "...",
-    "vibe": "...",
-    "sections": "...",
+    "name": "...", 
+    "industry": "...", 
+    "audience": "...", 
+    "vibe": "...", 
+    "sections": "...", 
     "context": "...", 
     "reference": "..." 
   }
@@ -154,12 +46,8 @@ Your ONLY job is to extract website requirements into a JSON object.
 `;
 
 async function chatWithArchitect(history, userMessage, currentBrief = {}) {
-    console.log("🔹 [Architect] Incoming State:", JSON.stringify(currentBrief));
-
     const chat = fastModel.startChat({
-        history: [
-            { role: "user", parts: [{ text: ARCHITECT_PROMPT }] }
-        ]
+        history: [{ role: "user", parts: [{ text: ARCHITECT_PROMPT }] }]
     });
 
     const messageWithContext = `
@@ -169,256 +57,156 @@ async function chatWithArchitect(history, userMessage, currentBrief = {}) {
 
     try {
         const result = await chat.sendMessage(messageWithContext);
-        const responseText = result.response.text();
-        
-        // Intentar parsear JSON (Gemini a veces pone markdown ```json ... ```)
-        const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-        const aiOutput = JSON.parse(cleanJson);
+        const text = result.response.text();
+        let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        const aiOutput = JSON.parse(cleanText);
 
-        // --- HELPER: SANITIZADOR DE DATOS ---
-        // Convierte "Unknown", "N/A", "TBD" en null real
-        const clean = (val) => {
-            if (!val) return null;
-            if (typeof val !== 'string') return val;
-            const v = val.toLowerCase().trim();
-            if (['null', 'unknown', 'n/a', 'tbd', 'pending', 'undefined', 'not specified'].includes(v)) return null;
-            if (v.length < 2) return null; // Evita respuestas como "-" o "."
-            return val; // Devuelve el valor original (con mayúsculas correctas)
-        };
+        const clean = (val) => (val && !['null','unknown','tbd'].includes(val.toLowerCase()) ? val : null);
 
-        // 1. SAFE MERGE CON LIMPIEZA
         const safeBrief = {
-            name: clean(aiOutput.brief?.name) || currentBrief.name || null,
-            industry: clean(aiOutput.brief?.industry) || currentBrief.industry || null,
-            audience: clean(aiOutput.brief?.audience) || currentBrief.audience || null,
-            vibe: clean(aiOutput.brief?.vibe) || currentBrief.vibe || null,
-            sections: clean(aiOutput.brief?.sections) || currentBrief.sections || null,
-            context: aiOutput.brief?.context || currentBrief.context || null,
-            reference: aiOutput.brief?.reference || currentBrief.reference || null,
+            name: clean(aiOutput.brief?.name) || currentBrief.name,
+            industry: clean(aiOutput.brief?.industry) || currentBrief.industry,
+            audience: clean(aiOutput.brief?.audience) || currentBrief.audience,
+            vibe: clean(aiOutput.brief?.vibe) || currentBrief.vibe,
+            sections: clean(aiOutput.brief?.sections) || currentBrief.sections,
+            context: aiOutput.brief?.context || currentBrief.context,
+            reference: aiOutput.brief?.reference || currentBrief.reference,
         };
 
-        console.log("🔸 [Architect] Cleaned Data:", JSON.stringify(safeBrief));
-
-        // 2. LOGICA DEL MANAGER (Determina qué preguntar)
         let nextReply = "";
         let isComplete = false;
 
-        if (!safeBrief.industry) {
-            nextReply = "¡Hola! Soy Teo. Para empezar, ¿a qué industria pertenece tu proyecto (ej: Restaurante, Portafolio)?";
-        } else if (!safeBrief.name) {
-            nextReply = `Entendido, un proyecto de ${safeBrief.industry}. ¿Cuál es el nombre de la marca?`;
-        } else if (!safeBrief.audience) {
-            nextReply = `Genial, ${safeBrief.name}. ¿A qué público objetivo nos dirigimos?`;
-        } else if (!safeBrief.vibe) {
-            nextReply = "¿Qué estilo visual o 'vibe' buscas? (ej: Minimalista, Cyberpunk, Elegante)";
-        } else if (!safeBrief.sections) {
-            nextReply = "¿Qué secciones necesitas? (ej: Inicio, Servicios, Contacto)";
-        } else {
-            // SOLO SI TODO LO ANTERIOR TIENE DATOS REALES
+        if (!safeBrief.industry) nextReply = "What industry or niche is this for?";
+        else if (!safeBrief.name) nextReply = `Got it, a ${safeBrief.industry} project. What is the name?`;
+        else if (!safeBrief.vibe) nextReply = "What is the visual vibe? (e.g. Minimal, Colorful, Corporate)";
+        else if (!safeBrief.sections) nextReply = "Any specific sections needed? (e.g. Services, Pricing)";
+        else {
             isComplete = true;
-            nextReply = "¡Perfecto! He creado el plan. Revísalo aquí abajo para comenzar la construcción.";
+            nextReply = "Perfect. I have a plan. Check the brief below and let's build.";
         }
 
-        return {
-            reply: nextReply,
-            brief: safeBrief,
-            is_complete: isComplete,
-            action: "CHAT"
-        };
+        return { reply: nextReply, brief: safeBrief, is_complete: isComplete, action: isComplete ? "BUILD" : "CHAT" };
 
     } catch (error) {
         console.error("Architect Error:", error);
-        return { 
-            reply: "No te entendí bien. ¿Podrías repetirlo?", 
-            brief: currentBrief, 
-            is_complete: false,
-            action: "CHAT"
-        };
+        return { reply: "I missed that. Could you repeat?", brief: currentBrief, is_complete: false };
     }
 }
 
-// END OF ARCHITECT FUNCTION
-
-
-// --- HELPER FUNCTION (This was missing!) ---
-function cleanAndExtractCode(text) {
-    try {
-        let code = text.trim();
-        
-        // 1. Markdown Strategy
-        const markdownMatch = text.match(/```(?:jsx|javascript|js|tsx)?\s*([\s\S]*?)\s*```/);
-        if (markdownMatch && markdownMatch[1]) {
-            return { code: markdownMatch[1].trim() };
-        }
-        
-        // 2. JSON Strategy (Fallback)
-        if (code.startsWith("{") && code.endsWith("}")) {
-            try {
-                const parsed = JSON.parse(code);
-                if (parsed.code) return { code: parsed.code };
-            } catch (e) {}
-        }
-        
-        // 3. Raw Code Strategy
-        if (text.includes("function App") || text.includes("export default")) {
-            return { code: text.replace(/^json\s*/, "").replace(/^code\s*/, "").trim() };
-        }
-        
-        throw new Error("No code block found");
-    } catch (e) {
-        console.error("Extraction Error:", text.substring(0, 100) + "...");
-        throw new Error("Failed to extract code");
-    }
-}
-
-// --- agent.js ---
+// ============================================================
+//  PART 2: THE BUILDER (Strict SmartImage)
+// ============================================================
 
 async function generateWebsite(userPrompt, style = "Modern") {
-    // ⚡ MOCK TRAP
-    if (userPrompt.trim() === "TEST") {
-        console.log("⚡ MOCK MODE: Skipping Gemini API...");
-        await new Promise(resolve => setTimeout(resolve, 2000)); 
-        return { code: MOCK_SITE };
-    }
+    
+    // PROCEDURAL LAYOUT
+    const LAYOUT_ALGORITHM = `
+    **PROCEDURAL LAYOUT ENGINE:**
+    Maximize engagement by creating a "High-Depth" scrolling experience.
+    
+    **STEP 1: Archetype Detection:**
+    - **E-Commerce/Food:** Menu Grids, Featured Items, Mood Images, Location.
+    - **SaaS/Tech:** Feature Grids (Bento), Interactive Demos, Trust Logos, Pricing.
+    - **Portfolio:** Masonry Galleries, Case Studies, Services.
+    - **Corporate:** "Why Us", Process Steps, Testimonials, FAQ.
 
-    const vibe = style || "Modern";
+    **STEP 2: Section Stack (Mandatory 6-8 Sections):**
+    Compose the page using **6 to 8 distinct vertical sections**. 
+    *Do not output a short page.*
+    `;
 
-    // --- THE NEW "CONTEXT-AWARE" PROMPT ---
     const finalPrompt = `
-    **TASK:** Create a complete, multi-page website based on the structured Brief below.
-
+    **TASK:** Build a Production-Grade React App.
+    
     **THE BRIEF:**
     ${userPrompt}
 
-    **1. 🏗️ DYNAMIC ARCHITECTURE (Sections):**
-    - Analyze the **"Sections"** requested in the Brief (e.g., "Menu, Booking, Contact").
-    - **Rule:** You MUST create a view/page for EVERY section listed. 
-    - Do not just make generic "Home/About/Services". If they asked for "Portfolio" or "Pricing", build those specific views.
-    - Use \`const [view, setView] = useState('Home')\` to handle navigation.
+    ${LAYOUT_ALGORITHM}
 
-    **2. 🔗 REFERENCE WEBSITE ANALYSIS (Important):**
-    - Look for "REFERENCE SITE DATA" in the Brief above.
-    - If present, analyze the text content, headings, and description extracted from that URL.
-    - **Mimic the writing style** found in that data.
-    - **Mimic the structure** (e.g., if they have a 'Features' section in the extracted text, include it).
-
-    **3. ✍️ COPYWRITING & TONE (Audience-Driven):**
-    - Analyze the **"Audience"** and **"Industry"** fields.
-    - **Rule:** Adapt the writing style (Microcopy, Headlines, CTAs) to match this specific audience.
-    - **CRITICAL:** Check the **"Context"** field. If the user provided specific details (e.g., "Founded in 1990", "We sell organic cookies"), you MUST weave these facts into the generated text.
-    - *Scenario A:* If Audience is "Gen Z skaters", use slang, lowercase, edgy tone.
-    - *Scenario B:* If Audience is "Medical Professionals", use precise, formal, trustworthy tone.
-    - *Scenario C:* If Audience is "Children", use simple words and enthusiastic tone.
+    **TECHNICAL ENVIRONMENT (Sandpack):**
+    - **Imports:** You MUST use standard ES imports.
+      - \`import React, { useState, useEffect } from 'react';\`
+      - \`import { Zap, Menu, X, ArrowRight } from 'lucide-react';\`
+      - \`import { motion, AnimatePresence } from 'framer-motion';\`
+      - \`import SmartImage from './SmartImage';\`  <-- CRITICAL IMPORT
     
-    **4. 🎨 PROCEDURAL STYLING (Vibe-Driven):**
-    - The user wants a **"${vibe}"** aesthetic.
-    - Interpret this vibe into a custom Tailwind Design System (Colors, Fonts, Spacing, Border Radius).
-
-    **5. Images (CHANGED RULE):** 
-       - Do NOT use Pollinations AI.
-       - You MUST use the local API endpoint for images.
-       - **URL Format:** \`/api/image?prompt={URI_ENCODED_DESCRIPTION}\`
-       - *Example:* \`<img src="/api/image?prompt=A%20futuristic%20office%20with%20plants" alt="Office" />\`
-       - Always URI-encode the prompt parameter.
-
-    - **CRITICAL COMPONENT RULE:** 
-      - A component named \`<SmartImage />\` is ALREADY defined in the environment.
-      - **DO NOT define it.** Just use it.
-      - **ALWAYS** use \`<SmartImage src="..." alt="..." className="..." />\` instead of \`<img>\`.
-      - It accepts all standard img props + Tailwind classes.
-
-    **REQUIREMENTS:**
-    - Export a single component \`App\`.
-    - Use **Raw SVGs** for icons (do not assume lucide-react is installed).
-    - Ensure the site feels complete, not like a template.
+    **🔴 CRITICAL IMAGE RULES (STRICT):**
+    1. You MUST use the \`<SmartImage />\` component for ALL images.
+    2. **DO NOT USE THE STANDARD \`<img>\` TAG. EVER.**
+    3. **Syntax:** \`<SmartImage src="/api/image?prompt=URI_ENCODED_PROMPT" alt="..." className="..." />\`
+    4. **Source:** Always use the local API \`/api/image?prompt=...\`. Do not use placeholders or external URLs.
+    
+    **STYLING:**
+    - Tailwind CSS. Use generous padding (py-24).
+    - Vibe: ${style}
+    - \`export default function App() { ... }\`
     `;
 
     try {
-        const chat = creativeModel.startChat({
-            history: [{ role: "user", parts: [{ text: SYSTEM_PROMPT }] }]
-        });
-        
-        console.log(`Agent: Generating for "${vibe}" with Dynamic Copy...`);
+        const chat = creativeModel.startChat({ history: [] });
+        console.log(`Agent: Building Sandpack Site (${style})...`);
         const result = await chat.sendMessage(finalPrompt);
         return cleanAndExtractCode(result.response.text());
     } catch (error) {
-        console.error("Gemini API Error:", error);
+        console.error("Builder Error:", error);
         throw error;
     }
 }
 
 async function editWebsite(currentCode, instruction) {
-    // ⚡ MOCK TRAP (Keep this if you want quick tests)
-    if (instruction.trim() === "TEST") {
-        return { code: currentCode.replace("text-white", "text-red-500") };
-    }
-
-    // 1. SYSTEM PROMPT FOR EDITING
-    // We strictly forbid imports for SmartImage and force full code output.
     const EDIT_SYSTEM_PROMPT = `
-    You are a Senior React Developer specializing in refactoring.
-    
-    **CONTEXT:**
-    - The code runs in a browser environment (Babel Standalone).
-    - **<SmartImage />** is a GLOBAL component. **DO NOT import it.** Just use it.
-    - **Lucide Icons:** You MUST import them: \`import { X, Y } from 'lucide-react';\`
-    
-    **RULES:**
-    1. **NO PLACEHOLDERS:** You must return the **ENTIRE** file content. Do not write "// ... rest of code".
-    2. **STRICT JSX:** Ensure all tags are closed and state is valid.
-    3. **ONLY THE CODE:** Return raw code. No markdown chatter like "Here is the fixed code".
+    You are a React Expert in a Sandpack environment.
+    - Imports: lucide-react, framer-motion, ./SmartImage are available.
+    - RULE: ALWAYS return the FULL file content. No placeholders.
+    - REMINDER: Use <SmartImage />, never <img>.
     `;
 
     try {
         const chat = fastModel.startChat({
             history: [
                 { role: "user", parts: [{ text: EDIT_SYSTEM_PROMPT }] },
-                // We wrap the code in a block so the AI knows exactly what to edit
-                { role: "model", parts: [{ text: "Awaiting code to refactor." }] },
-                { role: "user", parts: [{ text: `CURRENT CODE:\n\`\`\`jsx\n${currentCode}\n\`\`\`` }] }
+                { role: "model", parts: [{ text: "Ready for code." }] },
+                { role: "user", parts: [{ text: `CODE:\n\`\`\`jsx\n${currentCode}\n\`\`\`` }] }
             ]
         });
-        
-        console.log(`Agent: Editing with instruction: "${instruction}"`);
-        
-        const result = await chat.sendMessage(`
-        **USER INSTRUCTION:** ${instruction}
-        
-        **TASK:** 
-        - Apply the change.
-        - Ensure <SmartImage /> is NOT imported (it is global).
-        - Return the FULL updated file code.
-        `);
-        
+        const result = await chat.sendMessage(`Refactor based on: "${instruction}". Return FULL code.`);
         return cleanAndExtractCode(result.response.text());
-    } catch (error) {
-        console.error("Gemini Edit Error:", error);
-        throw error;
-    }
+    } catch (e) { throw e; }
 }
 
-// --- FIX: USE REST API FOR IMAGEN ---
+function cleanAndExtractCode(text) {
+    let clean = text.replace(/```(jsx|javascript|js|tsx)?/g, '').replace(/```/g, '').trim();
+    if (clean.startsWith('{') && clean.includes('code":')) {
+        try { clean = JSON.parse(clean).code; } catch(e){}
+    }
+    const firstImport = clean.indexOf('import');
+    const firstFunc = clean.indexOf('function');
+    const firstExport = clean.indexOf('export');
+    let start = 0;
+    if (firstImport > -1) start = firstImport;
+    else if (firstExport > -1 && (firstExport < firstFunc || firstFunc === -1)) start = firstExport;
+    else if (firstFunc > -1) start = firstFunc;
+    
+    if (start > 0) clean = clean.substring(start);
+    return { code: clean };
+}
+
 async function generateImage(prompt) {
-    try {
-        const API_KEY = process.env.GEMINI_API_KEY;
-        const MODEL_NAME = "imagen-4.0-generate-preview-06-06";
-        
-        console.log(`🎨 Generating with ${MODEL_NAME}: "${prompt}"`);
-
+     const API_KEY = process.env.GEMINI_API_KEY;
+     const MODEL_NAME = "imagen-4.0-generate-preview-06-06";
+     try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:predict?key=${API_KEY}`;
-
         const response = await axios.post(url, {
             instances: [{ prompt: prompt }],
             parameters: { sampleCount: 1, aspectRatio: "16:9" }
         });
-
         const base64Data = response.data.predictions[0].bytesBase64Encoded;
         return Buffer.from(base64Data, "base64");
-
-    } catch (error) {
-        console.error("Imagen 4.0 Error:", error.response?.data || error.message);
-        throw error;
-    }
+     } catch (e) {
+         console.error("Imagen Error:", e.message);
+         // Return 1x1 transparent pixel on error
+         return Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
+     }
 }
 
 module.exports = { generateWebsite, editWebsite, chatWithArchitect, generateImage };

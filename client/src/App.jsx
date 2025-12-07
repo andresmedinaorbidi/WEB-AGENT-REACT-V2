@@ -6,9 +6,8 @@ import {
   Smartphone, Monitor, Tablet, Copy, Trash2, History, User,
   Download, Upload, LogOut, X, MessageSquare, Palette, CheckCircle2, Circle, ArrowRight
 } from 'lucide-react';
-
-// 1. Importar arriba con los otros imports
-import teoImage from './assets/teo.avif'; // Asegúrate que la ruta sea correcta
+import teoImage from './assets/teo.avif'; // Teo Avatar
+import { SandpackProvider, SandpackLayout, SandpackPreview, SandpackCodeEditor } from "@codesandbox/sandpack-react";
 
 const API_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:3000/api' 
@@ -238,6 +237,133 @@ const ProcessingScreen = ({ initialPrompt, onAnalysisComplete }) => {
       </div>
     </div>
   );
+};
+
+// --- SANDPACK CONFIGURATION ---
+
+const SMART_IMAGE_CODE = `
+import React, { useState, useEffect } from 'react';
+
+export default function SmartImage({ src, alt, className, ...props }) {
+  const [status, setStatus] = useState('loading'); 
+  const [objectUrl, setObjectUrl] = useState('');
+  const [debugError, setDebugError] = useState(''); // To show error on screen
+
+  useEffect(() => {
+    if (!src) return;
+
+    let isMounted = true;
+    
+    // Force Localhost
+    const targetUrl = src.startsWith('/api') 
+        ? 'http://localhost:3000' + src 
+        : src;
+
+    const fetchImage = async () => {
+        try {
+            setStatus('loading');
+            
+            const response = await fetch(targetUrl, { 
+                method: 'GET'
+            });
+
+            if (!response.ok) throw new Error(\`HTTP \${response.status}\`);
+            
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+
+            if (isMounted) {
+                setObjectUrl(url);
+                setStatus('loaded');
+            }
+        } catch (err) {
+            console.error("Image Fetch Error:", err);
+            if (isMounted) {
+                // Show the specific error text on the UI
+                setDebugError(err.message); 
+                setStatus('error');
+            }
+        }
+    };
+
+    fetchImage();
+
+    return () => {
+        isMounted = false;
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [src]);
+
+  return (
+    <div className={\`relative overflow-hidden bg-gray-900 \${className || ''}\`}>
+      <style>{\`
+        @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+        .shimmer::after {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            animation: shimmer 1.5s infinite;
+        }
+      \`}</style>
+
+      {/* LOADING */}
+      {status === 'loading' && (
+        <div className="absolute inset-0 z-20 bg-gray-800 shimmer flex items-center justify-center">
+             <span className="text-[10px] text-gray-400 font-mono animate-pulse">GENERATING AI...</span>
+        </div>
+      )}
+
+      {/* ERROR STATE (With Debug Info) */}
+      {status === 'error' && (
+         <div className="absolute inset-0 z-20 bg-gray-900 flex flex-col items-center justify-center p-4 text-center border border-red-900/50">
+             <span className="text-red-500 font-bold text-xs mb-1">IMAGE FAILED</span>
+             <span className="text-gray-500 text-[10px] font-mono">{debugError}</span>
+             <span className="text-gray-600 text-[9px] mt-2 break-all">{src}</span>
+         </div>
+      )}
+
+      {/* SUCCESS STATE */}
+      {objectUrl && status === 'loaded' && (
+          <img 
+            src={objectUrl} 
+            alt={alt}
+            className="block w-full h-full object-cover animate-in fade-in duration-700"
+            {...props}
+          />
+      )}
+    </div>
+  );
+}
+`;
+
+// 2. Custom Theme to match your UI
+const wflowTheme = {
+  colors: {
+    surface1: '#ffffff',
+    surface2: '#f9fafb',
+    surface3: '#e5e7eb',
+    clickable: '#808080',
+    base: '#323232',
+    disabled: '#C5C5C5',
+    hover: '#4D4D4D',
+    accent: '#60259f',
+    error: '#ef4444',
+    errorSurface: '#ffeceb',
+  },
+  syntax: {
+    keyword: '#60259f',
+    property: '#60259f',
+    plain: '#111827',
+    static: '#ab05f0',
+    string: '#16a34a',
+    definition: '#60259f',
+    tag: '#84cc16',
+  },
+  font: {
+    body: 'Inter, sans-serif',
+    mono: 'Fira Code, monospace',
+    size: '13px',
+    lineHeight: '20px',
+  },
 };
 
 // --- MAIN APP ---
@@ -504,8 +630,10 @@ export default function App() {
       });
       
       clearInterval(interval);
-      setSiteUrl(res.data.url);
-      setRawCode(res.data.code);
+      // --- UPDATED FOR SANDPACK ---
+      setRawCode(res.data.code); 
+      setSiteUrl('SANDPACK_MODE'); // Just a flag to say we are ready
+      // ---------------------------
       saveToHistory(prompt, res.data.code);
       
       // --- ⏱️ STOP TIMER & CALCULATE ---
@@ -539,6 +667,31 @@ export default function App() {
 
   return (
     <div className="flex flex-col md:flex-row h-[100dvh] bg-[#f8f9fc] text-gray-900 font-sans overflow-hidden selection:bg-[#beff50]/50 relative">
+
+      {/* ⚡ START OF FIX: Force Sandpack Height ⚡ */}
+      <style>{`
+        .sp-wrapper, .sp-layout, .sp-stack {
+            height: 100% !important;
+            width: 100% !important;
+        }
+        .sp-preview-container {
+            height: 100% !important;
+            flex: 1;
+            display: flex !important;
+            flex-direction: column;
+        }
+        .sp-preview-iframe {
+            height: 100% !important;
+            flex-grow: 1;
+        }
+        /* Ensure the internal flex container fills space */
+        .sp-layout > div {
+            height: 100%;
+            width: 100%;
+        }
+      `}</style>
+      {/* ⚡ END OF FIX ⚡ */}
+
       <input type="file" ref={fileInputRef} onChange={importData} className="hidden" accept=".json" />
 
       {/* BACKGROUND */}
@@ -725,26 +878,108 @@ export default function App() {
 
           {/* RIGHT PANEL (Preview) */}
           <div className={`flex-1 bg-[#f3f4f6] relative flex flex-col h-full ${mobileTab === 'chat' ? 'hidden md:flex' : 'flex'}`}>
+             
+             {/* Header */}
              <div className="h-14 border-b border-gray-200 bg-white flex items-center justify-between px-4 z-20 shadow-sm shrink-0">
-                <div className="hidden md:flex items-center gap-1 bg-gray-100 p-1 rounded-lg border border-gray-200">{['100%', '768px', '375px'].map((w, i) => (<button key={w} onClick={() => setPreviewWidth(w)} className={`p-1.5 rounded-md transition-all ${previewWidth === w ? 'bg-white text-[#60259f] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>{i === 0 ? <Monitor size={16}/> : i === 1 ? <Tablet size={16}/> : <Smartphone size={16}/>}</button>))}</div>
-                <div className="flex items-center gap-2 px-4 py-1.5 bg-gray-100 border border-gray-200 rounded-full text-[10px] text-gray-500 font-mono mx-auto md:mx-0 shadow-inner"><div className={`w-2 h-2 rounded-full ${loading ? 'bg-[#60259f] animate-ping' : 'bg-green-500'} `} />preview.wflow.app</div>
-                <button onClick={() => setViewMode(viewMode === 'preview' ? 'code' : 'preview')} className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold transition-colors ${viewMode === 'code' ? 'bg-[#60259f] text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}><Code size={14} /> {viewMode === 'preview' ? 'Code' : 'Preview'}</button>
+                <div className="hidden md:flex items-center gap-1 bg-gray-100 p-1 rounded-lg border border-gray-200">
+                    {['100%', '768px', '375px'].map((w, i) => (
+                        <button key={w} onClick={() => setPreviewWidth(w)} className={`p-1.5 rounded-md transition-all ${previewWidth === w ? 'bg-white text-[#60259f] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
+                            {i === 0 ? <Monitor size={16}/> : i === 1 ? <Tablet size={16}/> : <Smartphone size={16}/>}
+                        </button>
+                    ))}
+                </div>
+                
+                <div className="flex items-center gap-2 px-4 py-1.5 bg-gray-100 border border-gray-200 rounded-full text-[10px] text-gray-500 font-mono mx-auto md:mx-0 shadow-inner">
+                    <div className={`w-2 h-2 rounded-full ${loading ? 'bg-[#60259f] animate-ping' : 'bg-green-500'} `} />
+                    preview.wflow.app
+                </div>
+                
+                <button onClick={() => setViewMode(viewMode === 'preview' ? 'code' : 'preview')} className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold transition-colors ${viewMode === 'code' ? 'bg-[#60259f] text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                    <Code size={14} /> {viewMode === 'preview' ? 'Editor' : 'Preview'}
+                </button>
              </div>
-             <div className="flex-1 overflow-hidden relative flex justify-center bg-gray-100 p-2 md:p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+
+             {/* MAIN PREVIEW AREA (SANDPACK) */}
+             <div className="flex-1 overflow-hidden relative bg-gray-100 p-2 md:p-4">
+                
+                {/* Loading Overlay */}
                 {loading && (
                   <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-md transition-all duration-700">
-                     <div className="flex flex-col items-center gap-6 relative z-10"><div className="relative"><div className="absolute inset-0 bg-[#beff50] blur-2xl opacity-60 animate-pulse rounded-full"></div><Loader2 size={64} className="text-[#60259f] animate-spin relative z-10" /></div><div className="text-center space-y-2"><h3 className="text-lg font-bold text-gray-900 tracking-widest uppercase animate-pulse">{loadingText}</h3><p className="text-xs text-gray-500 font-mono">Teo is coding...</p></div></div>
+                     <div className="flex flex-col items-center gap-6 relative z-10">
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-[#beff50] blur-2xl opacity-60 animate-pulse rounded-full"></div>
+                            <Loader2 size={64} className="text-[#60259f] animate-spin relative z-10" />
+                        </div>
+                        <div className="text-center space-y-2">
+                            <h3 className="text-lg font-bold text-gray-900 tracking-widest uppercase animate-pulse">{loadingText}</h3>
+                        </div>
+                     </div>
                   </div>
                 )}
-                {viewMode === 'preview' ? (
-                  <div className={`relative transition-all duration-500 ease-in-out group w-full md:w-auto ${loading ? 'scale-95 opacity-50 blur-sm grayscale' : 'scale-100 opacity-100'}`} style={{ width: window.innerWidth < 768 ? '100%' : previewWidth, height: '100%' }}>
-                    <div className="relative h-full w-full bg-white shadow-2xl overflow-hidden md:rounded-2xl border border-gray-200">
-                      {siteUrl ? <iframe src={siteUrl} className="w-full h-full border-none" title="Preview" /> : <div className="flex flex-col items-center justify-center h-full bg-white text-gray-400 gap-6"><div className="w-24 h-24 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center shadow-inner"><Sparkles size={32} className="text-gray-300" /></div><p className="text-sm font-medium">Ready to build your vision.</p></div>}
-                    </div>
-                  </div>
-                ) : (
-                   <div className="w-full h-full max-w-4xl bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col"><pre className="flex-1 p-6 overflow-auto text-xs font-mono text-gray-700 bg-gray-50">{rawCode}</pre></div>
-                )}
+
+                {/* Sandpack Container */}
+                <div className="h-full w-full shadow-2xl rounded-2xl overflow-hidden border border-gray-200 bg-white relative transition-all duration-500" style={{ width: window.innerWidth < 768 ? '100%' : previewWidth, margin: '0 auto' }}>
+                   
+                   {rawCode ? (
+                       <SandpackProvider
+                        template="react"
+                        theme={wflowTheme}
+                        // 1. THIS IS THE FIX: FORCE HEIGHT 100%
+                        style={{ height: '100%', width: '100%' }} 
+                        files={{
+                          "/App.js": rawCode,
+                          "/SmartImage.js": SMART_IMAGE_CODE,
+                          "/public/index.html": `<!DOCTYPE html>
+                            <html lang="en">
+                              <head>
+                                <meta charset="UTF-8">
+                                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                <title>Preview</title>
+                                <script src="https://cdn.tailwindcss.com"></script>
+                                <style>html, body, #root { height: 100%; margin: 0; }</style>
+                              </head>
+                              <body>
+                                <div id="root"></div>
+                              </body>
+                            </html>`
+                        }}
+                        customSetup={{
+                          dependencies: {
+                            "lucide-react": "latest",
+                            "framer-motion": "latest",
+                            "clsx": "latest",
+                            "tailwind-merge": "latest"
+                          }
+                        }}
+                        options={{
+                           showNavigator: true, 
+                           showTabs: false,
+                           externalResources: ["https://cdn.tailwindcss.com"],
+                           autorun: true,
+                           showErrorScreen: true
+                        }}
+                      >
+                        <SandpackLayout style={{ height: "100%", border: "none" }}>
+                            <div className="flex h-full w-full">
+                                {viewMode === 'code' && <SandpackCodeEditor style={{ height: "100%", flex: 1 }} />}
+                                <SandpackPreview 
+                                    style={{ height: "100%", flex: 1, display: viewMode === 'preview' ? 'block' : 'none' }} 
+                                    showOpenInCodeSandbox={false} 
+                                    showRefreshButton={true}
+                                />
+                            </div>
+                        </SandpackLayout>
+                      </SandpackProvider>
+                   ) : (
+                       /* ... (Empty state remains the same) ... */
+                       <div className="flex flex-col items-center justify-center h-full bg-white text-gray-400 gap-6">
+                           <div className="w-24 h-24 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center shadow-inner">
+                               <Sparkles size={32} className="text-gray-300" />
+                           </div>
+                           <p className="text-sm font-medium">Ready to build your vision.</p>
+                       </div>
+                   )}
+                </div>
              </div>
           </div>
 
