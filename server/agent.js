@@ -124,12 +124,12 @@ async function generateWebsite(userPrompt, style = "Modern") {
     - **Corporate:** "Why Us", Process Steps, Testimonials, FAQ.
 
     **STEP 2: Section Stack (Mandatory 6-8 Sections):**
-    Compose the page using **6 to 8 distinct vertical sections**. 
+    Compose each  page using **6 to 8 distinct vertical sections**. 
     *Do not output a short page.*
     `;
 
     const finalPrompt = `
-    **TASK:** Build a Production-Grade React App.
+    **TASK:** Create a complete, multi-page website based on the structured Brief below.
     
     **THE BRIEF:**
     ${userPrompt}
@@ -149,6 +149,30 @@ async function generateWebsite(userPrompt, style = "Modern") {
     3. **Syntax:** \`<SmartImage src="/api/image?prompt=URI_ENCODED_PROMPT" alt="..." className="..." />\`
     4. **Source:** Always use the local API \`/api/image?prompt=...\`. Do not use placeholders or external URLs.
     
+    **1. 🏗️ DYNAMIC ARCHITECTURE (Sections):**
+    - Analyze the **"Sections"** requested in the Brief (e.g., "Menu, Booking, Contact").
+    - **Rule:** You MUST create a view/page for EVERY section listed. 
+    - Do not just make generic "Home/About/Services". If they asked for "Portfolio" or "Pricing", build those specific views.
+    - Use \`const [view, setView] = useState('Home')\` to handle navigation.
+
+    **2. 🔗 REFERENCE WEBSITE ANALYSIS (Important):**
+    - Look for "REFERENCE SITE DATA" in the Brief above.
+    - If present, analyze the text content, headings, and description extracted from that URL.
+    - **Mimic the writing style** found in that data.
+    - **Mimic the structure** (e.g., if they have a 'Features' section in the extracted text, include it).
+
+    **3. ✍️ COPYWRITING & TONE (Audience-Driven):**
+    - Analyze the **"Audience"** and **"Industry"** fields.
+    - **Rule:** Adapt the writing style (Microcopy, Headlines, CTAs) to match this specific audience.
+    - **CRITICAL:** Check the **"Context"** field. If the user provided specific details (e.g., "Founded in 1990", "We sell organic cookies"), you MUST weave these facts into the generated text.
+    - *Scenario A:* If Audience is "Gen Z skaters", use slang, lowercase, edgy tone.
+    - *Scenario B:* If Audience is "Medical Professionals", use precise, formal, trustworthy tone.
+    - *Scenario C:* If Audience is "Children", use simple words and enthusiastic tone.
+    
+    **4. 🎨 PROCEDURAL STYLING (Vibe-Driven):**
+    - The user wants a **"${style}"** aesthetic.
+    - Interpret this vibe into a custom Tailwind Design System (Colors, Fonts, Spacing, Border Radius).
+
     **STYLING:**
     - Tailwind CSS. Use generous padding (py-24).
     - Vibe: ${style}
