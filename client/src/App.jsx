@@ -241,33 +241,40 @@ const ProcessingScreen = ({ initialPrompt, onAnalysisComplete }) => {
 
 // --- SANDPACK CONFIGURATION ---
 
+// 1. The Hidden SmartImage Component
 const SMART_IMAGE_CODE = `
 import React, { useState, useEffect } from 'react';
 
 export default function SmartImage({ src, alt, className, ...props }) {
   const [status, setStatus] = useState('loading'); 
   const [objectUrl, setObjectUrl] = useState('');
-  const [debugError, setDebugError] = useState(''); // To show error on screen
+
+  // 🧠 INJECTED URL (Placeholder)
+  // If this still says "__BACKEND_URL__", the replacement failed in App.jsx
+  const BACKEND_BASE = "__BACKEND_URL__";
 
   useEffect(() => {
     if (!src) return;
-
     let isMounted = true;
     
-    // Force Localhost
-    const targetUrl = src.startsWith('/api') 
-        ? 'http://localhost:3000' + src 
-        : src;
+    // Construct target URL
+    let targetUrl = src;
+    if (src.startsWith('/api')) {
+       // Strip trailing slash if base has one
+       const base = BACKEND_BASE.endsWith('/') ? BACKEND_BASE.slice(0, -1) : BACKEND_BASE;
+       targetUrl = base + src;
+    }
+
+    // DEBUG: Print to Sandpack Console
+    // console.log("[SmartImage] Target:", targetUrl); 
 
     const fetchImage = async () => {
         try {
             setStatus('loading');
             
-            const response = await fetch(targetUrl, { 
-                method: 'GET'
-            });
-
-            if (!response.ok) throw new Error(\`HTTP \${response.status}\`);
+            // Fetch as Blob
+            const response = await fetch(targetUrl);
+            if (!response.ok) throw new Error("HTTP " + response.status);
             
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);
@@ -277,10 +284,9 @@ export default function SmartImage({ src, alt, className, ...props }) {
                 setStatus('loaded');
             }
         } catch (err) {
-            console.error("Image Fetch Error:", err);
+            console.error("[SmartImage] Failed:", err);
             if (isMounted) {
-                // Show the specific error text on the UI
-                setDebugError(err.message); 
+                setObjectUrl('https://placehold.co/600x400/1f2937/666?text=Image+Unavailable');
                 setStatus('error');
             }
         }
@@ -298,35 +304,20 @@ export default function SmartImage({ src, alt, className, ...props }) {
     <div className={\`relative overflow-hidden bg-gray-900 \${className || ''}\`}>
       <style>{\`
         @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
-        .shimmer::after {
-            content: ''; position: absolute; inset: 0;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-            animation: shimmer 1.5s infinite;
-        }
+        .shimmer::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); animation: shimmer 1.5s infinite; }
       \`}</style>
-
-      {/* LOADING */}
+      
       {status === 'loading' && (
         <div className="absolute inset-0 z-20 bg-gray-800 shimmer flex items-center justify-center">
-             <span className="text-[10px] text-gray-400 font-mono animate-pulse">GENERATING AI...</span>
+             <span className="text-[10px] text-gray-400 font-mono animate-pulse tracking-widest">GENERATING...</span>
         </div>
       )}
-
-      {/* ERROR STATE (With Debug Info) */}
-      {status === 'error' && (
-         <div className="absolute inset-0 z-20 bg-gray-900 flex flex-col items-center justify-center p-4 text-center border border-red-900/50">
-             <span className="text-red-500 font-bold text-xs mb-1">IMAGE FAILED</span>
-             <span className="text-gray-500 text-[10px] font-mono">{debugError}</span>
-             <span className="text-gray-600 text-[9px] mt-2 break-all">{src}</span>
-         </div>
-      )}
-
-      {/* SUCCESS STATE */}
-      {objectUrl && status === 'loaded' && (
+      
+      {objectUrl && (
           <img 
             src={objectUrl} 
             alt={alt}
-            className="block w-full h-full object-cover animate-in fade-in duration-700"
+            className={\`block w-full h-full object-cover transition-opacity duration-700 \${status === 'loaded' ? 'opacity-100' : 'opacity-0'}\`}
             {...props}
           />
       )}
@@ -400,6 +391,24 @@ export default function App() {
   
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // ==========================================
+  // 🔧 BACKEND CONNECTION LOGIC
+  // ==========================================
+  
+  // 1. DEFINE YOUR LOCAL BACKEND HERE
+  // If using a Tunnel, paste it here: 'https://brave-dog-55.loca.lt'
+  // If using standard local, use: 'http://localhost:3000'
+  const LOCAL_BACKEND = 'http://localhost:3000'; 
+
+  // 2. CALCULATE DYNAMIC URL
+  const backendUrl = window.location.hostname === 'localhost' 
+      ? LOCAL_BACKEND 
+      : window.location.origin;
+
+  // 3. INJECT INTO CODE
+  // We use a unique name for the variable to avoid caching issues
+  const finalSmartImageCode = SMART_IMAGE_CODE.replaceAll('__BACKEND_URL__', backendUrl);
 
   // SCROLL FIX: Use 'nearest' to avoid whole page jumping
   useEffect(() => { 
@@ -928,7 +937,7 @@ export default function App() {
                         style={{ height: '100%', width: '100%' }} 
                         files={{
                           "/App.js": rawCode,
-                          "/SmartImage.js": SMART_IMAGE_CODE,
+                          "/SmartImage.js": finalSmartImageCode,
                           "/public/index.html": `<!DOCTYPE html>
                             <html lang="en">
                               <head>
