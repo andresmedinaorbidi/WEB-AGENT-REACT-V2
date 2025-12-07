@@ -348,38 +348,49 @@ async function generateWebsite(userPrompt, style = "Modern") {
 }
 
 async function editWebsite(currentCode, instruction) {
-    // ⚡ MOCK TRAP FOR EDIT
+    // ⚡ MOCK TRAP (Keep this if you want quick tests)
     if (instruction.trim() === "TEST") {
-        console.log("⚡ MOCK EDIT: Skipping Gemini API...");
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        let edited = MOCK_SITE.replace('MOCK MODE', 'EDITED MODE');
-        edited = edited.replace(/#beff50/g, '#a855f7');
-        return { code: edited };
+        return { code: currentCode.replace("text-white", "text-red-500") };
     }
 
+    // 1. SYSTEM PROMPT FOR EDITING
+    // We strictly forbid imports for SmartImage and force full code output.
+    const EDIT_SYSTEM_PROMPT = `
+    You are a Senior React Developer specializing in refactoring.
+    
+    **CONTEXT:**
+    - The code runs in a browser environment (Babel Standalone).
+    - **<SmartImage />** is a GLOBAL component. **DO NOT import it.** Just use it.
+    - **Lucide Icons:** You MUST import them: \`import { X, Y } from 'lucide-react';\`
+    
+    **RULES:**
+    1. **NO PLACEHOLDERS:** You must return the **ENTIRE** file content. Do not write "// ... rest of code".
+    2. **STRICT JSX:** Ensure all tags are closed and state is valid.
+    3. **ONLY THE CODE:** Return raw code. No markdown chatter like "Here is the fixed code".
+    `;
+
     try {
-        // Use fastModel here
-        // We modify the prompt slightly to emphasize keeping the existing structure
         const chat = fastModel.startChat({
             history: [
-                { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
-                { role: "model", parts: [{ text: `\`\`\`jsx\n${currentCode}\n\`\`\`` }] }
+                { role: "user", parts: [{ text: EDIT_SYSTEM_PROMPT }] },
+                // We wrap the code in a block so the AI knows exactly what to edit
+                { role: "model", parts: [{ text: "Awaiting code to refactor." }] },
+                { role: "user", parts: [{ text: `CURRENT CODE:\n\`\`\`jsx\n${currentCode}\n\`\`\`` }] }
             ]
         });
         
-        console.log("Agent: Editing with Fast Model (Flash)...");
-        const result = await chat.sendMessage(`
-        You are an intelligent code editor.
-        Refactor the code above based on this instruction: "${instruction}"
+        console.log(`Agent: Editing with instruction: "${instruction}"`);
         
-        RULES:
-        1. Keep the existing design consistency.
-        2. Only change what is asked.
-        3. Return the FULL updated file.
+        const result = await chat.sendMessage(`
+        **USER INSTRUCTION:** ${instruction}
+        
+        **TASK:** 
+        - Apply the change.
+        - Ensure <SmartImage /> is NOT imported (it is global).
+        - Return the FULL updated file code.
         `);
         
-        const text = result.response.text();
-        return cleanAndExtractCode(text);
+        return cleanAndExtractCode(result.response.text());
     } catch (error) {
         console.error("Gemini Edit Error:", error);
         throw error;

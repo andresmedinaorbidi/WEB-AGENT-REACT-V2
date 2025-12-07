@@ -301,10 +301,56 @@ export default function App() {
   // HANDLERS DEL NUEVO FLUJO
   
   // 1. Usuario envía el prompt en el Landing
-  const handleStart = (prompt) => {
-      setInitialPrompt(prompt);
-      setAppState('processing'); // Pasamos a la pantalla de carga inteligente
-  };
+  const handleStart = async (prompt) => {
+    // 🚨 CHEAT CODE: Type "test:deploy" to skip AI and test the server
+    if (prompt.trim() === "test:deploy") {
+        setAppState('builder');
+        setLoading(true);
+        setLoadingText('Injecting Mock Site...');
+
+        const mockCode = `
+        import React from 'react';
+        import { Rocket } from 'lucide-react';
+        
+        export default function App() {
+          return (
+            <div className="min-h-screen bg-neutral-900 text-white flex flex-col items-center justify-center p-4">
+              <div className="bg-green-500/20 p-8 rounded-full mb-6 ring-1 ring-green-500">
+                <Rocket size={48} className="text-green-500" />
+              </div>
+              <h1 className="text-4xl font-bold mb-2">Deploy Test Mode</h1>
+              <p className="text-neutral-400 mb-8">Ready to publish to Surge.</p>
+              <div className="p-4 bg-black rounded-lg font-mono text-xs text-neutral-500">
+                ID: ${sessionId}
+              </div>
+            </div>
+          );
+        }`;
+
+        try {
+            // We use the /restore endpoint because it simply saves code to disk 
+            // without calling Gemini. Perfect for setting up the folder.
+            await axios.post(`${API_URL}/restore`, { 
+                sessionId: sessionId, 
+                code: mockCode 
+            });
+
+            setRawCode(mockCode);
+            setSiteUrl(`${API_URL}/sites/${sessionId}/index.html`);
+            setMessages([{ role: 'ai', text: "⚡ Test Mode Active. Click the Globe icon to test deployment." }]);
+        } catch (e) {
+            console.error("Mock injection failed", e);
+            alert("Server not running?");
+        }
+        
+        setLoading(false);
+        return; // Stop here, don't do the normal flow
+    }
+
+    // --- NORMAL FLOW BELOW ---
+    setInitialPrompt(prompt);
+    setAppState('processing');
+};
 
   // 2. Procesamiento completado (viene de ProcessingScreen)
   const handleAnalysisComplete = (data) => {

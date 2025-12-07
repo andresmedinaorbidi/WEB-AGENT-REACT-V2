@@ -199,29 +199,64 @@ app.post('/api/restore', async (req, res) => {
 app.post('/api/deploy', async (req, res) => {
     const { sessionId } = req.body;
     const folderPath = path.join(sitesDir, sessionId);
+    
     if (!fs.existsSync(folderPath)) return res.status(400).json({ error: "Site not found" });
+    if (!process.env.SURGE_TOKEN) return res.status(500).json({ error: "Missing SURGE_TOKEN" });
 
-    // SURGE DEPLOYMENT (Cross-Platform)
     const randomName = 'wflow-' + Math.random().toString(36).substr(2, 6);
     const domain = `${randomName}.surge.sh`;
-    
-    // Check if token exists
-    if (!process.env.SURGE_TOKEN) {
-        return res.status(500).json({ error: "Missing SURGE_TOKEN in server env" });
+
+    console.log(`🚀 Preparing deploy for ${domain}...`);
+
+    let surgeScriptPath;
+    try {
+        // 1. Locate the package.json for Surge
+        const pkgJsonPath = require.resolve('surge/package.json');
+        const pkgRoot = path.dirname(pkgJsonPath);
+        
+        // 2. Read the file to find the 'bin' entry
+        const pkgData = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
+        
+        // 3. Extract the binary path (it can be a string or an object)
+        let binRelativePath;
+        if (typeof pkgData.bin === 'string') {
+            binRelativePath = pkgData.bin;
+        } else if (typeof pkgData.bin === 'object' && pkgData.bin.surge) {
+            binRelativePath = pkgData.bin.surge;
+        } else {
+            // FALLBACK: If bin is missing, try common locations based on your log
+            binRelativePath = './lib/surge.js';
+        }
+
+        // 4. Resolve the absolute path
+        surgeScriptPath = path.resolve(pkgRoot, binRelativePath);
+        
+        console.log(`🔎 Resolved Surge Executable to: ${surgeScriptPath}`);
+        
+        if (!fs.existsSync(surgeScriptPath)) {
+            throw new Error(`File does not exist at calculated path: ${surgeScriptPath}`);
+        }
+
+    } catch (e) {
+        console.error("❌ Path Error:", e.message);
+        return res.status(500).json({ 
+            error: "Could not locate Surge executable. Try 'npm install surge' again." 
+        });
     }
 
-    // Use local binary
-    const isWindows = process.platform === "win32";
-    const surgeExec = isWindows ? 'surge.cmd' : 'surge';
-    const surgePath = path.join(__dirname, 'node_modules', '.bin', surgeExec);
+    // 5. Execute with the IPv4 flag
+    const command = `"${process.execPath}" --dns-result-order=ipv4first "${surgeScriptPath}" --project "${folderPath}" --domain ${domain} --token ${process.env.SURGE_TOKEN}`;
 
-    const command = `"${surgePath}" --project "${folderPath}" --domain ${domain} --token ${process.env.SURGE_TOKEN}`;
-    
     exec(command, (error, stdout, stderr) => {
         if (error) {
-            console.error("Surge Error:", stderr);
-            return res.status(500).json({ error: "Deploy failed" });
+            console.error("❌ Deploy Error:", stderr || error.message);
+            if (error.message.includes('ENOTFOUND') || error.message.includes('EAI_AGAIN')) {
+                return res.status(500).json({ error: "Network Error: DNS Resolution failed." });
+            }
+            return res.status(500).json({ error: "Deploy failed. Check server logs." });
         }
+
+        console.log("✅ Success:", domain);
         res.json({ url: `https://${domain}` });
     });
 });
