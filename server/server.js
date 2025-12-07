@@ -336,7 +336,7 @@ if (fs.existsSync(clientBuildPath)) {
 
     // Handle React Routing (Catch-all)
     // If the user goes to /whatever, send index.html and let React handle it
-    app.get('*', (req, res) => {
+    app.get(/.*/, (req, res) => {
         // Ignore API calls so we don't accidentally return HTML for an API error
         if (req.path.startsWith('/api') || req.path.startsWith('/sites')) {
             return res.status(404).json({ error: "Not Found" });
