@@ -321,5 +321,35 @@ app.get('/api/download/:sessionId', (req, res) => {
     res.send(data);
 });
 
+// ============================================================
+//  SERVE FRONTEND (Production Logic)
+// ============================================================
+// 1. Define where the React build files live
+const clientBuildPath = path.join(__dirname, '../client/dist');
+
+// 2. Check if the build exists (It will on Render if configured correctly)
+if (fs.existsSync(clientBuildPath)) {
+    console.log("📂 Serving React App from:", clientBuildPath);
+    
+    // Serve static files (JS, CSS, Images)
+    app.use(express.static(clientBuildPath));
+
+    // Handle React Routing (Catch-all)
+    // If the user goes to /whatever, send index.html and let React handle it
+    app.get('*', (req, res) => {
+        // Ignore API calls so we don't accidentally return HTML for an API error
+        if (req.path.startsWith('/api') || req.path.startsWith('/sites')) {
+            return res.status(404).json({ error: "Not Found" });
+        }
+        res.sendFile(path.join(clientBuildPath, 'index.html'));
+    });
+} else {
+    // Fallback for local dev if you didn't build the client
+    console.log("⚠️ No client build found at:", clientBuildPath);
+    app.get('/', (req, res) => {
+        res.send('<h1>Backend is running!</h1><p>To see the app, run <code>npm run build</code> in the client folder.</p>');
+    });
+}
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
