@@ -1,13 +1,13 @@
+// server/services/siteManager.js
 const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 const AdmZip = require('adm-zip');
 
-// 1. Adjust path to point to "server/sites" (up one level)
 const sitesDir = path.join(__dirname, '../sites');
 if (!fs.existsSync(sitesDir)) fs.mkdirSync(sitesDir, { recursive: true });
 
-// 2. The HTML Wrapper logic
+// --- FINAL "SAFETY PROXY" WRAPPER ---
 const DEPLOY_WRAPPER = (code) => `
 <!DOCTYPE html>
 <html lang="en">
@@ -16,15 +16,21 @@ const DEPLOY_WRAPPER = (code) => `
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generated Site</title>
     
-    <!-- 1. External Libraries (CDN) -->
+    <!-- 1. CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- 2. REACT (Standard Browser Build) -->
+    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
     
-    <!-- 2. Dependencies (Pinned Versions) -->
-    <script src="https://unpkg.com/lucide@0.263.1/dist/umd/lucide.min.js"></script>
+    <!-- 3. BABEL -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- 4. DEPENDENCIES -->
+    <!-- Framer Motion -->
     <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+    <!-- Lucide Icons (Stable Version) -->
+    <script src="https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>
 
     <style>
         body { margin: 0; font-family: 'Inter', sans-serif; background-color: #000; color: #fff; }
@@ -35,20 +41,49 @@ const DEPLOY_WRAPPER = (code) => `
 <body>
     <div id="root"></div>
 
-    <script type="text/babel">
-        // 3. Environment Shim (The Magic Fix)
-        const { useState, useEffect, useRef } = React;
-        const { createRoot } = ReactDOM;
-        
-        // Fix Framer Motion: Map global window.Motion to variable 'motion'
-        const { motion, AnimatePresence } = window.Motion || {};
-        
-        // Fix Lucide Icons: Expose all icons to global scope
-        if (window.lucide) {
-            Object.assign(window, window.lucide);
-        }
+    <!-- 5. SAFETY ARCHITECTURE -->
+    <script>
+        // A. Prepare the Icon Library
+        // lucide-react 0.263.1 exports to 'window.lucide'
+        const rawIcons = window.lucide || {};
 
-        // 4. SmartImage Shim (Production)
+        // B. Create the Safety Proxy
+        // This intercepts every request for an icon.
+        window.SafeLucide = new Proxy(rawIcons, {
+            get: (target, prop) => {
+                // 1. If the icon exists, return it.
+                if (target[prop]) return target[prop];
+
+                // 2. If the icon is MISSING (or undefined), return a Safe Fallback Component.
+                // This prevents React Error #130 ("Element type is invalid: got undefined")
+                return (props) => React.createElement(
+                    'svg', 
+                    { ...props, width: 24, height: 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2 },
+                    React.createElement('rect', { x: 2, y: 2, width: 20, height: 20, rx: 2 }),
+                    React.createElement('path', { d: "M12 8v8" }),
+                    React.createElement('path', { d: "M8 12h8" })
+                );
+            }
+        });
+
+        // C. Capture Framer Motion
+        window.SafeMotion = window.Motion || { motion: 'div', AnimatePresence: ({children}) => children };
+    </script>
+
+    <!-- 6. APPLICATION LOGIC -->
+    <script type="text/babel">
+        // ------------------------------------------------------------------
+        // A. REACT SETUP
+        // ------------------------------------------------------------------
+        const { 
+            useState, useEffect, useRef, useMemo, useCallback, 
+            useContext, useReducer, useLayoutEffect 
+        } = React;
+        const { createRoot } = ReactDOM;
+
+        // ------------------------------------------------------------------
+        // B. SMART IMAGE
+        // ------------------------------------------------------------------
         const SmartImage = ({ src, alt, className, ...props }) => {
             const [loaded, setLoaded] = useState(false);
             return (
@@ -65,40 +100,59 @@ const DEPLOY_WRAPPER = (code) => `
             );
         };
 
-        // 5. Inject & Clean Code
-        // We strip imports because we just manually imported them above via Globals
-        const rawCode = \`${code.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`;
-        
-        // 6. Evaluate
-    </script>
-    
-    <!-- Separate script to run the cleaned code -->
-    <script type="text/babel">
+        // ------------------------------------------------------------------
+        // C. INJECTED CODE
+        // ------------------------------------------------------------------
         ${code
-            .replace(/import\s+.*?from\s+['"].*?['"];?/g, '') // Remove all import lines
-            .replace(/export default function App/, 'function App') // Normalize export
-        }
+            // 1. SAFE ICONS: import { Map, Zap } -> const { Map, Zap } = window.SafeLucide;
+            // Because 'SafeLucide' is a proxy, it will NEVER return undefined.
+            .replace(/import\s+\{([^}]+)\}\s+from\s+['"]lucide-react['"];?/g, 'const { $1 } = window.SafeLucide;')
+            
+            // 2. SAFE FRAMER
+            .replace(/import\s+\{([^}]+)\}\s+from\s+['"]framer-motion['"];?/g, 'const { $1 } = window.SafeMotion;')
+            
+            // 3. DELETE REACT IMPORTS
+            .replace(/import\s+.*?from\s+['"]react['"];?/g, '')
+            .replace(/import\s+.*?from\s+['"]react-dom.*?['"];?/g, '')
 
+            // 4. CLEANUP
+            .replace(/import\s+.*?from\s+['"].*?['"];?/g, '// import removed')
+            .replace(/export default function App/, 'function App')
+            .replace(/export default/, '') 
+        }
+        
+        // ------------------------------------------------------------------
+        // D. MOUNTING
+        // ------------------------------------------------------------------
         const root = createRoot(document.getElementById('root'));
-        root.render(<App />);
+        
+        let MainComponent = null;
+        if (typeof App !== 'undefined') MainComponent = App;
+        
+        if (MainComponent) {
+            try {
+                root.render(<MainComponent />);
+            } catch (e) {
+                console.error("Runtime Render Error:", e);
+                document.body.innerHTML = '<h2 style="color:red; padding:20px">Runtime Error</h2>';
+            }
+        } else {
+            console.error("Mounting Error: 'App' component is undefined.");
+            document.body.innerHTML = '<div style="color:white; background:#ef4444; padding:20px; font-family:sans-serif;"><h1>Render Error</h1><p>The App component could not be loaded.</p></div>';
+        }
     </script>
 </body>
 </html>
 `;
 
-// 3. Logic: Save to Disk
 function saveSite(sessionId, rawCode) {
     const dir = path.join(sitesDir, sessionId);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     
-    // Save raw code for downloading/restoring
     fs.writeFileSync(path.join(dir, 'app.jsx'), rawCode);
-    
-    // Save HTML for Surge Deployments
     fs.writeFileSync(path.join(dir, 'index.html'), DEPLOY_WRAPPER(rawCode));
 }
 
-// 4. Logic: Create ZIP for Download
 function createDownloadArchive(sessionId) {
     const folderPath = path.join(sitesDir, sessionId);
     if (!fs.existsSync(folderPath)) throw new Error("Session not found");
@@ -118,7 +172,6 @@ function createDownloadArchive(sessionId) {
     return zip.toBuffer();
 }
 
-// 5. Logic: Deploy to Surge
 function deploySite(sessionId) {
     return new Promise((resolve, reject) => {
         const folderPath = path.join(sitesDir, sessionId);
@@ -128,7 +181,6 @@ function deploySite(sessionId) {
         const randomName = 'wflow-' + Math.random().toString(36).substr(2, 6);
         const domain = `${randomName}.surge.sh`;
         
-        // Find Surge Binary Logic
         let surgeScriptPath;
         try {
             const pkgJsonPath = require.resolve('surge/package.json');
@@ -154,5 +206,4 @@ function deploySite(sessionId) {
     });
 }
 
-// 6. EXPORT EVERYTHING
 module.exports = { saveSite, createDownloadArchive, deploySite };
