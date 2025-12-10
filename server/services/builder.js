@@ -79,7 +79,13 @@ async function generateWebsite(userPrompt, style = "Modern") {
 
     try {
         const chat = creativeModel.startChat({ history: [] });
+        
+        // 🔍 DEBUG LOGGING (X-RAY)
+        console.log("\n🟧 [BUILDER PROMPT]:");
+        console.log(finalPrompt);
+        console.log("--------------------------------------------------\n");
         console.log(`Agent: Building Sandpack Site (${style})...`);
+
         const result = await chat.sendMessage(finalPrompt);
         const rawResult = cleanAndExtractCode(result.response.text());
         return { code: fixImageTags(rawResult.code) };
@@ -92,6 +98,7 @@ async function generateWebsite(userPrompt, style = "Modern") {
 async function editWebsite(currentCode, instruction) {
     const EDIT_SYSTEM_PROMPT = `
     You are a React Expert in a Sandpack environment.
+    1. **NO TRUNCATION:** You MUST return the ENTIRE file content, even if it is 1000 lines long. Do NOT stop halfway.
     - Imports: lucide-react, framer-motion, ./SmartImage are available.
     - RULE: ALWAYS return the FULL file content. No placeholders.
     - REMINDER: Use <SmartImage />, never <img>.
@@ -105,6 +112,13 @@ async function editWebsite(currentCode, instruction) {
                 { role: "user", parts: [{ text: `CODE:\n\`\`\`jsx\n${currentCode}\n\`\`\`` }] }
             ]
         });
+
+        // 🔍 LOGGING EDITOR ACTION
+        console.log("\n🟧 [EDITOR INSTRUCTION]:");
+        console.log(`User asked: "${instruction}"`);
+        console.log(`Context: Editing file (Size: ${currentCode.length} chars)`);
+        console.log("--------------------------------------------------\n");
+
         const result = await chat.sendMessage(`Refactor based on: "${instruction}". Return FULL code.`);
         return cleanAndExtractCode(result.response.text());
     } catch (e) { throw e; }

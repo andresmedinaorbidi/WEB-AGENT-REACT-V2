@@ -39,10 +39,20 @@ async function chatWithArchitect(history, userMessage, currentBrief = {}) {
     `;
 
     try {
+        // 🔍 LOGGING INPUT (Check this to see Scraper Injection!)
+        console.log("\n🟦 [ARCHITECT INPUT (What the AI sees)]:");
+        console.log(messageWithContext);
+        console.log("--------------------------------------------------\n");
+
         const result = await chat.sendMessage(messageWithContext);
         const text = result.response.text();
         let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
         const aiOutput = JSON.parse(cleanText);
+
+        // 🔍 DEBUG LOGGING (X-RAY)
+        console.log("\n🟦 [ARCHITECT OUTPUT]:");
+        console.log(JSON.stringify(aiOutput, null, 2));
+        console.log("--------------------------------------------------\n");
 
         const clean = (val) => {
             if (!val) return null;

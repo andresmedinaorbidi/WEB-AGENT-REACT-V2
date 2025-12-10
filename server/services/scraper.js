@@ -47,11 +47,16 @@ async function analyzeUrl(url) {
         - **Content Snippets:** ${bodyText}
         `;
 
-        res.json({ rawData });
+        // 🔍 LOGGING THE SCRAPE RESULT
+        console.log("\n🟪 [SCRAPER OUTPUT]:");
+        console.log(rawData);
+        console.log("--------------------------------------------------\n");
+
+        return rawData;
 
     } catch (error) {
         console.error("Scrape Error:", error.message);
-        res.json({ rawData: "Could not fetch website." });
+        return `(Could not scrape ${url}: ${error.message})`;
     }
 };
 

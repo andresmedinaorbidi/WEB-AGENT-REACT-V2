@@ -117,51 +117,64 @@ export default function App() {
     if (!chatInput.trim()) return;
     const userText = chatInput;
     
-    // UI Update
+    // 1. Update UI
     setMessages(prev => [...prev, { role: 'user', text: userText }]);
     setChatInput('');
     setIsTyping(true);
 
     try {
       if (appState === 'builder') {
-        // ... Builder Edit Logic (Keep as is) ...
-        setLoading(true); setLoadingText('Refining Code...');
-        const res = await axios.post(`${API_URL}/edit`, { instruction: userText, sessionId });
-        setRawCode(res.data.code);
-        setMessages(prev => [...prev, { role: 'ai', text: "I've updated the design based on your feedback." }]);
-        setLoading(false);
-        if (window.innerWidth < 768) setMobileTab('preview');
+         // --- BUILDER MODE ---
+         setLoading(true); setLoadingText('Refining Code...');
+         const res = await axios.post(`${API_URL}/edit`, { instruction: userText, sessionId });
+         setRawCode(res.data.code);
+         setMessages(prev => [...prev, { role: 'ai', text: "I've updated the design based on your feedback." }]);
+         setLoading(false);
+         if (window.innerWidth < 768) setMobileTab('preview');
       } else {
-        // RESTORED: URL Scraping Logic
-        let scrapedContext = "";
-        const foundUrl = extractUrl(userText);
-        
-        if (foundUrl) {
-            setMessages(prev => [...prev, { role: 'ai', text: `👀 I see a link (${foundUrl}). analyzing its structure...` }]);
-            try {
-                const scrapeRes = await axios.post(`${API_URL}/analyze`, { url: foundUrl });
-                scrapedContext = `\n\n[SYSTEM INJECTION: Reference Link Data from ${foundUrl}]:\n${scrapeRes.data.rawData}\n\n[INSTRUCTION: Use this data to fill context/reference fields.]`;
-            } catch (e) {
-                console.error("Scraping failed", e);
-            }
-        }
+         // --- ARCHITECT MODE ---
+         
+         // A. DETECT URL (The Trigger)
+         let scrapedContext = "";
+         const foundUrl = extractUrl(userText);
+         
+         if (foundUrl) {
+             // Notify user we are looking
+             setMessages(prev => [...prev, { role: 'ai', text: `👀 I see a link (${foundUrl}). Reading it now...` }]);
+             
+             try {
+                 // CALL SCRAPER (This triggers the PURPLE LOG in terminal)
+                 const scrapeRes = await axios.post(`${API_URL}/analyze`, { url: foundUrl });
+                 
+                 // Format for the AI
+                 scrapedContext = `\n\n[SYSTEM INJECTION: Reference Link Data from ${foundUrl}]:\n${scrapeRes.data.rawData}\n\n[INSTRUCTION: Use this data to fill context/reference fields.]`;
+             } catch (e) {
+                 console.error("Scraping failed", e);
+             }
+         }
 
-        const apiHistory = messages.map(m => ({ role: m.role === 'ai' ? 'model' : 'user', parts: [{ text: m.text }] }));
-        
-        // Send with context
-        const res = await axios.post(`${API_URL}/chat`, { 
-            history: apiHistory, 
-            message: userText + scrapedContext, 
-            currentBrief: liveBrief 
-        });
-        
-        const { reply, brief, is_complete } = res.data; 
-        
-        if (brief) setLiveBrief(prev => ({ ...prev, ...brief }));
-        setIsBriefComplete(is_complete);
-        setMessages(prev => [...prev, { role: 'ai', text: reply }]);
+         // B. PREPARE HISTORY
+         const apiHistory = messages.map(m => ({ role: m.role === 'ai' ? 'model' : 'user', parts: [{ text: m.text }] }));
+         
+         // C. CALL ARCHITECT (This triggers the BLUE LOG in terminal)
+         // Note: We append scrapedContext to the message invisibly
+         const res = await axios.post(`${API_URL}/chat`, { 
+             history: apiHistory, 
+             message: userText + scrapedContext, 
+             currentBrief: liveBrief 
+         });
+         
+         const { reply, brief, is_complete } = res.data; 
+         
+         if (brief) setLiveBrief(prev => ({ ...prev, ...brief }));
+         setIsBriefComplete(is_complete);
+         setMessages(prev => [...prev, { role: 'ai', text: reply }]);
       }
-    } catch (e) { console.error(e); setMessages(prev => [...prev, { role: 'ai', text: "Connection error. Teo is offline." }]); }
+    } catch (e) { 
+        console.error(e); 
+        setMessages(prev => [...prev, { role: 'ai', text: "Connection error. Teo is offline." }]); 
+    }
+    
     setIsTyping(false);
   };
 

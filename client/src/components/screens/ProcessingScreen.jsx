@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Sparkles } from 'lucide-react';
+// 1. IMPORT THE HELPER
+import { extractUrl } from '../../utils/helpers';
 
 const API_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:3000/api' 
@@ -13,18 +15,20 @@ const ProcessingScreen = ({ initialPrompt, onAnalysisComplete }) => {
   useEffect(() => {
     const processPrompt = async () => {
         try {
-            // 1. URL Analysis
+            // 1. URL Analysis (Robust Logic)
             setStatus('Detectando referencias...');
             let scrapedContext = "";
-            const urlMatch = initialPrompt.match(/(https?:\/\/[^\s]+)/);
+
+            // 2. USE HELPER instead of manual regex
+            const foundUrl = extractUrl(initialPrompt);
             
-            if (urlMatch) {
-                setStatus(`Analizando estructura de ${new URL(urlMatch[0]).hostname}...`);
+            if (foundUrl) {
+                setStatus(`Analizando estructura de ${new URL(foundUrl).hostname}...`);
                 try {
-                    const scrapeRes = await axios.post(`${API_URL}/analyze`, { url: urlMatch[0] });
+                    const scrapeRes = await axios.post(`${API_URL}/analyze`, { url: foundUrl });
                     scrapedContext = `
                     --- START OF SYSTEM INJECTION ---
-                    SOURCE: ${urlMatch[0]}
+                    SOURCE: ${foundUrl}
                     ${scrapeRes.data.rawData}
                     INSTRUCTION: Use data above to fill brief fields.
                     --- END OF SYSTEM INJECTION ---
